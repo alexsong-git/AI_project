@@ -4,11 +4,14 @@ from openpyxl import load_workbook
 import json
 import argparse
 from typing import Dict, Any, List
+from botocore.config import Config
 
-
+# 创建 S3 客户端
+s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
+bucket = 'ecms-user-email-message-dev'
 def process_email_parsing(excel_file_path):
     """处理邮件解析流程的主函数"""
-    url = 'http://order-email-parser:8080/parse-email'
+    url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
     wb = load_workbook(excel_file_path)
     sheet = wb.active
 
@@ -16,16 +19,15 @@ def process_email_parsing(excel_file_path):
     html_path_col_index = 1
     subject_col_index = 2
     sender_col_index = 3
-    request_col_index = 4  # 请求列
-    response_col_index = 5  # 响应列 (第五列)
-    expect_col_index = 6  # 预期结果列 (第六列)
-    diff_col_index = 7  # 差异列 (第七列)
+    html_url_col_index = 4
+    request_col_index = 5  # 请求列
+    response_col_index = 6  # 响应列 (第五列)
+    expect_col_index = 7  # 预期结果列 (第六列)
+    diff_col_index = 8  # 差异列 (第七列)
 
-    # 创建 S3 客户端
-    s3 = boto3.client('s3')
 
     # 处理所有请求
-    process_all_requests(sheet, s3, url, html_path_col_index, subject_col_index,
+    process_all_requests(sheet, s3, url, html_path_col_index, html_url_col_index, subject_col_index,
                          sender_col_index, request_col_index, response_col_index)
 
     # 比较第五列和第六列的差异并写入第七列
@@ -36,7 +38,7 @@ def process_email_parsing(excel_file_path):
     print(f"处理完成，已保存结果到 {excel_file_path}")
 
 
-def process_all_requests(sheet, s3_client, api_url, html_col, subject_col, sender_col,
+def process_all_requests(sheet, s3_client, api_url, html_col, html_url_col, subject_col, sender_col,
                          request_col, response_col):
     """处理所有行的请求，从S3获取内容并发送到API"""
     for row_num in range(2, sheet.max_row + 1):
@@ -60,6 +62,23 @@ def process_all_requests(sheet, s3_client, api_url, html_col, subject_col, sende
             sheet.cell(row=row_num, column=response_col, value=error_msg)
             print(error_msg)
 
+        try:
+            url = s3.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': bucket,
+                    'Key': html_path,
+                    'ResponseContentType': 'text/html'  # 强制浏览器渲染为HTML
+                },
+                ExpiresIn=360000
+            )
+            print(url)  # 输出可直接打开的临时链接
+            sheet.cell(row=row_num, column=html_url_col, value=url)
+        except Exception as e:
+            sheet.cell(row=row_num, column=html_url_col, value='生成html链接失败')
+            print('生成html链接失败')
+
+
 
 def build_request_body(s3_client, html_path, subject, sender):
     """构建API请求体"""
@@ -70,9 +89,7 @@ def build_request_body(s3_client, html_path, subject, sender):
     }
 
     if html_path:
-        bucket_name = 'ecms-user-email-message-dev'
-        print(f"从S3获取: {bucket_name}, {html_path}")
-        response_s3 = s3_client.get_object(Bucket=bucket_name, Key=html_path)
+        response_s3 = s3_client.get_object(Bucket=bucket, Key=html_path)
         request_body["content"] = response_s3['Body'].read().decode('utf-8')
 
     return request_body

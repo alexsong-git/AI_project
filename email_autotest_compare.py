@@ -11,7 +11,7 @@ s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
 bucket = 'ecms-user-email-message-dev'
 def process_email_parsing(excel_file_path):
     """处理邮件解析流程的主函数"""
-    url = 'http://order-email-parser:8080/parse-email'
+    url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
     wb = load_workbook(excel_file_path)
     sheet = wb.active
 
@@ -70,7 +70,7 @@ def process_all_requests(sheet, s3_client, api_url, html_col, html_url_col, subj
                     'Key': html_path,
                     'ResponseContentType': 'text/html'  # 强制浏览器渲染为HTML
                 },
-                ExpiresIn=3600
+                ExpiresIn=360000
             )
             print(url)  # 输出可直接打开的临时链接
             sheet.cell(row=row_num, column=html_url_col, value=url)
