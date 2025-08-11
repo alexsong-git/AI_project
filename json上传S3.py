@@ -87,22 +87,22 @@ if __name__ == "__main__":
     sheet = input("which sheet do you want to upload: 1、order 2、ship 3、cancle 4、return : ")
     if sheet == "1":
         print(1)
-        local_json_dir = "/Users/alex/request_order"  # 本地JSON文件目录
+        local_json_dir = "/Users/alex/AI邮件解析/request_order"  # 本地JSON文件目录
         bucket = "ecms-user-email-message-dev"  # S3存储桶名称
         s3_base_path = "request/order"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
     elif sheet == "2":
-        local_json_dir = "/Users/alex/request_ship"  # 本地JSON文件目录
+        local_json_dir = "/Users/alex/AI邮件解析/request_ship"  # 本地JSON文件目录
         bucket = "ecms-user-email-message-dev"  # S3存储桶名称
         s3_base_path = "request/ship"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
     elif sheet == "3":
-        local_json_dir = "/Users/alex/request_cancel"  # 本地JSON文件目录
+        local_json_dir = "/Users/alex/AI邮件解析/request_cancel"  # 本地JSON文件目录
         bucket = "ecms-user-email-message-dev"  # S3存储桶名称
         s3_base_path = "request/cancel"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
     elif sheet == "4":
-        local_json_dir = "/Users/alex/request_return"  # 本地JSON文件目录
+        local_json_dir = "/Users/alex/AI邮件解析/request_return"  # 本地JSON文件目录
         bucket = "ecms-user-email-message-dev"  # S3存储桶名称
         s3_base_path = "request/return"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)

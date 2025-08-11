@@ -16,8 +16,11 @@ def process_email_requests(excel_file_path, sheet_name):
     url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
     wb = load_workbook(excel_file_path)
 
-    # 创建存放JSON文件的目录（与Excel同目录）
-    json_dir = os.path.join(os.path.dirname(excel_file_path), 'request_jsons')
+    # 创建存放JSON文件的目录（根据sheet名称区分）
+    # 获取Excel文件所在目录
+    excel_dir = os.path.dirname(excel_file_path)
+    # 生成带sheet名称的JSON目录（如request_order、request_ship）
+    json_dir = os.path.join(excel_dir, f'request_{sheet_name.strip().lower()}')
     os.makedirs(json_dir, exist_ok=True)
 
     # 根据指定的sheet名称获取工作表
@@ -37,7 +40,7 @@ def process_email_requests(excel_file_path, sheet_name):
     request_col_index = 5  # 请求列（存储JSON文件链接）
     response_col_index = 6  # 响应列
 
-    # 直接使用工作表名称作为数据类型（核心修改）
+    # 直接使用工作表名称作为数据类型
     data_type = sheet_name.strip().lower()
     # 清理类型中的非法字符
     data_type = ''.join([c if c.isalnum() or c == '_' else '_' for c in data_type])

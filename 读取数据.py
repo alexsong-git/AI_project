@@ -16,7 +16,7 @@ queries = {
     "order": """
     SELECT "html_body", "subject", "sender" 
     FROM "EmailMessage" 
-    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','heinzwihelmguderian1888@gmail.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
+    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
     AND "business_type" = 'ORDER' 
     AND ("subject" ILIKE '%confir%' OR "subject" ILIKE '%receive%' OR "subject" ILIKE '%new%' OR "subject" ILIKE '%processe%') 
     AND "datetime" BETWEEN '2025-07-30 00:00:00+00' AND '2025-07-30 23:00:00+00'
@@ -25,7 +25,7 @@ queries = {
     "ship": """
     SELECT "html_body", "subject", "sender" 
     FROM "EmailMessage" 
-    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','heinzwihelmguderian1888@gmail.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
+    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
     AND "business_type" = 'ORDER' 
     AND ("subject" ILIKE '%ship%' OR "subject" ILIKE '%way%') 
     AND "datetime" BETWEEN '2025-07-30 00:00:00+00' AND '2025-08-05 23:00:00+00'
@@ -34,7 +34,7 @@ queries = {
     "cancel": """
     SELECT "html_body", "subject", "sender" 
     FROM "EmailMessage" 
-    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','heinzwihelmguderian1888@gmail.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
+    WHERE "email" IN ('minji.kim10101@gmail.com','panxiuyan749@gmail.com','jie.liu@seel.com','zhe.jiang@seel.com','xingchen.alexsong@gmail.com','kai.li@seel.com','hao.zhou@seel.com')
     AND "business_type" = 'ORDER' 
     AND ("subject" ILIKE '%cancel%') 
     AND "datetime" BETWEEN '2025-07-30 00:00:00+00' AND '2025-08-05 23:00:00+00'
