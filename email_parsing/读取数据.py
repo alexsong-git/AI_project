@@ -43,7 +43,15 @@ queries = {
     "return": """
     SELECT "html_body", "subject", "sender"
     FROM "EmailMessage" WHERE "email" = 'songyuchen93@gmail.com' AND "business_type" = 'RETURN' order by "created_ts" DESC ;
+    """,
+    "test": """
+    SELECT "html_body", "subject", "sender" 
+    FROM "EmailMessage" 
+    WHERE "email" IN ('yi.z@seel.com')
+    AND "business_type" = 'ORDER' 
+    ORDER BY "email", "created_ts" DESC;
     """
+
 }
 
 

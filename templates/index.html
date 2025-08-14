@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Parser Platform</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        .panel {
+            padding: 10px;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+        #left-panel {
+            width: 50%;
+            background-color: #f0f0f0;
+            border-right: 1px solid #ccc;
+        }
+        #right-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+        }
+        #response-panel {
+            height: 50%;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ccc;
+        }
+        #expect-panel {
+            height: 50%;
+            background-color: #f5f5f5;
+        }
+        pre {
+            width: 100%;
+            height: 70%;
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ddd;
+            overflow: auto;
+        }
+        .request-item {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            position: relative;
+        }
+        .request-item:hover {
+            background-color: #e0e0e0;
+        }
+        .active {
+            background-color: #d0d0d0;
+        }
+        .button-container {
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .status-success {
+            color: green;
+        }
+        .status-error {
+            color: red;
+        }
+        .refresh-btn {
+            margin-left: 10px;
+        }
+        .html-toggle {
+            color: #0066cc;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 10px;
+            display: inline-block;
+        }
+        .html-files-container {
+            display: none;
+            margin-top: 10px;
+            margin-left: 20px;
+            padding: 10px;
+            background-color: #e8e8e8;
+            border-radius: 4px;
+        }
+        .html-content-container {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .html-content-header {
+            background-color: #f0f0f0;
+            padding: 5px 10px;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+        }
+        .html-content-close {
+            cursor: pointer;
+            color: #666;
+        }
+        .html-content-close:hover {
+            color: #333;
+        }
+        .html-content {
+            padding: 10px;
+            background-color: white;
+            max-height: 800px;
+            overflow: auto;
+        }
+        .html-file-link {
+            display: block;
+            color: #0066cc;
+            text-decoration: underline;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .html-file-link:hover {
+            color: #004080;
+        }
+        .debug-info {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .html-count {
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+        .request-number {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+            margin-right: 10px;
+            font-weight: bold;
+            color: #666;
+        }
+        .sort-info {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            padding-left: 5px;
+        }
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .notification.error {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div id="left-panel" class="panel">
+        <h2>Request Files
+            <button id="refresh-btn" class="refresh-btn">Refresh</button>
+        </h2>
+        <div class="sort-info">已按编号升序排列</div>
+        <div id="requests-list"></div>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <div id="response-panel" class="panel">
+            <h2>API Response</h2>
+            <div id="response-status" class="status-success"></div>
+            <pre id="response-content"></pre>
+        </div>
+        <div id="expect-panel" class="panel">
+            <h2>Expected Response</h2>
+            <pre id="expect-content" contenteditable="true"></pre>
+            <div class="button-container">
+                <button id="save-btn">Save Expectation</button>
+                <button id="reset-btn">Reset to Actual</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示框 -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const requestsList = document.getElementById('requests-list');
+            const responseContent = document.getElementById('response-content');
+            const responseStatus = document.getElementById('response-status');
+            const expectContent = document.getElementById('expect-content');
+            const saveBtn = document.getElementById('save-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const notification = document.getElementById('notification');
+
+            let currentRequestId = null;
+            let currentResponse = null;
+
+            // 显示通知
+            function showNotification(message, isError = false) {
+                notification.textContent = message;
+                notification.className = 'notification';
+                if (isError) {
+                    notification.classList.add('error');
+                }
+                notification.style.display = 'block';
+
+                // 3秒后自动隐藏
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 3000);
+            }
+
+            // 加载请求列表
+            loadRequests();
+
+            // 刷新按钮
+            refreshBtn.addEventListener('click', loadRequests);
+
+            // 重置期望值为实际响应
+            resetBtn.addEventListener('click', function() {
+                if (currentResponse) {
+                    expectContent.textContent = JSON.stringify(currentResponse, null, 2);
+                }
+            });
+
+            // 保存期望值
+            saveBtn.addEventListener('click', function() {
+                if (!currentRequestId) return;
+
+                const newExpect = expectContent.textContent;
+                try {
+                    JSON.parse(newExpect); // 验证JSON格式
+                } catch (e) {
+                    showNotification('Invalid JSON format: ' + e.message, true);
+                    return;
+                }
+
+                fetch(`/api/update_expect/${currentRequestId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({expect: JSON.parse(newExpect)})
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || 'Failed to save');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        showNotification(data.message || 'Expectation saved successfully!');
+                    } else {
+                        showNotification(data.message || 'Saved locally but failed to upload to S3', true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error saving expectation: ' + error.message, true);
+                });
+            });
+
+            // 加载请求列表
+            function loadRequests() {
+                fetch('/api/requests')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Loaded requests:', data);
+                        requestsList.innerHTML = '';
+                        if (data.length === 0) {
+                            requestsList.innerHTML = '<p>No requests found</p>';
+                            return;
+                        }
+                        // 前端再次确认排序
+                        data.sort((a, b) => a.number - b.number);
+                        data.forEach(req => {
+                            addRequestToList(req.id, req.name, req.number, req.has_html, req.html_count);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading requests:', error);
+                        requestsList.innerHTML = `<p>Error loading requests: ${error.message}</p>`;
+                    });
+            }
+
+            // 添加请求到列表
+            function addRequestToList(requestId, requestName, requestNumber, hasHtml, htmlCount) {
+                console.log(`Adding request ${requestId}: ${requestName}, number: ${requestNumber}`);
+
+                const requestItem = document.createElement('div');
+                requestItem.className = 'request-item';
+
+                const itemContent = document.createElement('div');
+                itemContent.innerHTML = `
+                    <span class="request-number">${typeof requestNumber === 'number' ? requestNumber : '#'}</span>
+                    <span class="request-name">${requestName}</span>
+                    ${hasHtml ? `<span class="html-count">${htmlCount} files</span>` : ''}
+                    <span class="html-toggle">${hasHtml ? '▼ Show HTML' : '▼ No HTML'}</span>
+                `;
+
+                requestItem.appendChild(itemContent);
+                requestItem.dataset.id = requestId;
+
+                // 添加HTML文件列表区域
+                const htmlFilesContainer = document.createElement('div');
+                htmlFilesContainer.className = 'html-files-container';
+                requestItem.appendChild(htmlFilesContainer);
+
+                // 切换HTML文件列表显示/隐藏
+                const toggleBtn = requestItem.querySelector('.html-toggle');
+                toggleBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const container = requestItem.querySelector('.html-files-container');
+
+                    if (container.style.display === 'block') {
+                        container.style.display = 'none';
+                        toggleBtn.textContent = hasHtml ? '▼ Show HTML' : '▼ No HTML';
+                    } else {
+                        container.style.display = 'block';
+                        toggleBtn.textContent = '▲ Hide';
+                        container.innerHTML = '<p>Loading HTML files...</p>';
+
+                        // 加载HTML文件列表
+                        fetch(`/api/html_files/${requestId}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to load HTML files');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log(`HTML files for request ${requestId}:`, data);
+                                container.innerHTML = `
+                                    <p class="debug-info">Looking for: ${data.base_name}.html</p>
+                                `;
+
+                                if (data.html_files && data.html_files.length > 0) {
+                                    const fileList = document.createElement('div');
+                                    data.html_files.forEach(file => {
+                                        const link = document.createElement('div');
+                                        link.className = 'html-file-link';
+                                        link.textContent = file;
+                                        link.addEventListener('click', function(e) {
+                                            e.stopPropagation();
+                                            loadAndShowHtmlContent(requestId, file);
+                                        });
+                                        fileList.appendChild(link);
+                                    });
+                                    container.appendChild(fileList);
+                                } else {
+                                    container.innerHTML += '<p>No matching HTML files found</p>';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error loading HTML files:', error);
+                                container.innerHTML = `Error loading HTML files: ${error.message}`;
+                            });
+                    }
+                });
+
+                // 点击加载请求详情
+                requestItem.addEventListener('click', function(e) {
+                    if (!e.target.classList.contains('html-toggle') && !e.target.classList.contains('html-file-link')) {
+                        // 设置高亮
+                        document.querySelectorAll('.request-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        this.classList.add('active');
+
+                        // 加载请求数据
+                        currentRequestId = requestId;
+                        fetch(`/api/request/${requestId}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                currentResponse = data.response.data;
+
+                                // 显示请求数据
+                                responseContent.textContent = JSON.stringify(data.response, null, 2);
+                                expectContent.textContent = JSON.stringify(data.expect.data, null, 2);
+
+                                // 更新状态显示
+                                if (data.response.status >= 200 && data.response.status < 300) {
+                                    responseStatus.className = 'status-success';
+                                    responseStatus.textContent = `Status: ${data.response.status} Success`;
+                                } else {
+                                    responseStatus.className = 'status-error';
+                                    responseStatus.textContent = `Status: ${data.response.status} Error`;
+                                }
+                            });
+                    }
+                });
+
+                requestsList.appendChild(requestItem);
+            }
+
+            // 加载并显示HTML内容
+            function loadAndShowHtmlContent(requestId, fileName) {
+                // 检查是否已有相同的HTML内容容器，有的话先移除
+                const existingContainer = document.querySelector(`.html-content-container[data-request-id="${requestId}"][data-file-name="${fileName}"]`);
+                if (existingContainer) {
+                    existingContainer.remove();
+                    return;
+                }
+
+                // 创建HTML内容容器
+                const htmlContainer = document.createElement('div');
+                htmlContainer.className = 'html-content-container';
+                htmlContainer.dataset.requestId = requestId;
+                htmlContainer.dataset.fileName = fileName;
+
+                // 添加标题栏
+                const header = document.createElement('div');
+                header.className = 'html-content-header';
+                header.innerHTML = `
+                    <span>HTML Content: ${fileName}</span>
+                    <span class="html-content-close">×</span>
+                `;
+                htmlContainer.appendChild(header);
+
+                // 添加内容区域
+                const contentArea = document.createElement('div');
+                contentArea.className = 'html-content';
+                contentArea.innerHTML = '<p>Loading HTML content...</p>';
+                htmlContainer.appendChild(contentArea);
+
+                // 添加到请求项下方
+                const requestItem = document.querySelector(`.request-item[data-id="${requestId}"]`);
+                requestItem.parentNode.insertBefore(htmlContainer, requestItem.nextSibling);
+
+                // 关闭按钮事件
+                header.querySelector('.html-content-close').addEventListener('click', function() {
+                    htmlContainer.remove();
+                });
+
+                // 加载HTML内容
+                fetch(`/api/html_body_file/${requestId}?file=${encodeURIComponent(fileName)}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load HTML content');
+                        }
+                        return response.text();
+                    })
+                    .then(html => {
+                        contentArea.innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error('Error loading HTML content:', error);
+                        contentArea.innerHTML = `<p class="status-error">Error loading HTML: ${error.message}</p>`;
+                    });
+            }
+        });
+    </script>
+</body>
+</html>
