@@ -10,19 +10,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 创建 S3 客户端
 s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
 bucket = 'ecms-user-email-message-dev'
+# HTML文件存储根目录
+HTML_ROOT_DIR = '/Users/alex/AI邮件解析'
 # 线程池最大工作线程数
-MAX_WORKERS = 10  # 可根据实际情况调整
+MAX_WORKERS = 5  # 可根据实际情况调整
 
 
 def process_email_requests(excel_file_path, sheet_name):
     """处理邮件请求发送流程的主函数"""
+    # 根据sheet名称创建对应的HTML目录
+    html_dir = os.path.join(HTML_ROOT_DIR, f'html_body_{sheet_name.strip().lower()}')
+    os.makedirs(html_dir, exist_ok=True)
+
     url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
     wb = load_workbook(excel_file_path)
 
     # 创建存放JSON文件的目录（根据sheet名称区分）
     excel_dir = os.path.dirname(excel_file_path)
     json_dir = os.path.join(excel_dir, f'request_{sheet_name.strip().lower()}')
+    # 创建存放响应JSON文件的目录
+    response_dir = os.path.join(excel_dir, f'response_{sheet_name.strip().lower()}')
     os.makedirs(json_dir, exist_ok=True)
+    os.makedirs(response_dir, exist_ok=True)
 
     # 根据指定的sheet名称获取工作表
     if sheet_name in wb.sheetnames:
@@ -37,7 +46,7 @@ def process_email_requests(excel_file_path, sheet_name):
     html_path_col_index = 1
     subject_col_index = 2
     sender_col_index = 3
-    html_url_col_index = 4
+    html_url_col_index = 4  # 现在存储本地HTML文件超链接
     request_col_index = 5  # 请求列（存储JSON文件链接）
     response_col_index = 6  # 响应列
 
@@ -53,7 +62,7 @@ def process_email_requests(excel_file_path, sheet_name):
         rows_to_process.append((
             row_num, sheet, s3, url, html_path_col_index, html_url_col_index,
             subject_col_index, sender_col_index, request_col_index,
-            response_col_index, json_dir, data_type
+            response_col_index, json_dir, response_dir, data_type, html_dir
         ))
 
     # 使用线程池处理所有行
@@ -75,10 +84,12 @@ def process_email_requests(excel_file_path, sheet_name):
     wb.save(excel_file_path)
     print(f"请求处理完成，已保存结果到 {excel_file_path}")
     print(f"请求JSON文件已保存到: {json_dir}")
+    print(f"响应JSON文件已保存到: {response_dir}")
+    print(f"HTML文件已下载到: {html_dir}")
 
 
 def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_col, subject_col, sender_col,
-                       request_col, response_col, json_dir, data_type):
+                       request_col, response_col, json_dir, response_dir, data_type, html_dir):
     """处理单行请求（供多线程调用）"""
     try:
         html_path = sheet.cell(row=row_num, column=html_col).value
@@ -88,8 +99,11 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
         request_body = build_request_body(s3_client, html_path, subject, sender)
 
         # 使用工作表名作为类型生成文件名
-        json_filename = f"request_row_{row_num}_{data_type}.json"
+        json_filename = f"request_{data_type}_row{row_num}.json"
         json_filepath = os.path.join(json_dir, json_filename)
+        # 响应文件路径
+        response_filename = f"response_{data_type}_row{row_num}.json"
+        response_filepath = os.path.join(response_dir, response_filename)
 
         # 校验：如果subject为空则不写入request，清空原有内容
         if subject and str(subject).strip():
@@ -108,8 +122,10 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
             if os.path.exists(json_filepath):
                 os.remove(json_filepath)
 
-            # 同时清空响应列
+            # 清空响应相关内容
             sheet.cell(row=row_num, column=response_col).value = ""
+            if os.path.exists(response_filepath):
+                os.remove(response_filepath)
             return
 
         # 判断content是否为空，决定是否发起请求
@@ -117,12 +133,22 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
         if content is not None and str(content).strip():
             result = send_request(api_url, request_body)
 
+            # 保存响应结果到JSON文件
+            with open(response_filepath, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+
+
+
             if isinstance(result, dict):
                 sheet.cell(row=row_num, column=response_col, value=json.dumps(result, indent=2))
             else:
                 sheet.cell(row=row_num, column=response_col, value=str(result))
         else:
             sheet.cell(row=row_num, column=response_col, value="内容为空，未发送请求")
+            # 清空响应文件
+            if os.path.exists(response_filepath):
+                os.remove(response_filepath)
+
 
     except Exception as e:
         error_msg = f'处理行 {row_num} 时发生异常: {str(e)}'
@@ -132,23 +158,37 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
     try:
         # 如果html_path为空，不生成html_url
         if html_path:
-            url = s3.generate_presigned_url(
-                'get_object',
-                Params={
-                    'Bucket': bucket,
-                    'Key': html_path,
-                    'ResponseContentType': 'text/html'
-                },
-                ExpiresIn=360000
-            )
-            print(url)
-            sheet.cell(row=row_num, column=html_url_col, value=url)
+            # 下载HTML文件到对应sheet的HTML目录
+            local_html_path = download_html_from_s3(s3_client, html_path, row_num, data_type, html_dir)
+            if local_html_path:
+                # 设置本地HTML文件的超链接
+                sheet.cell(row=row_num, column=html_url_col).hyperlink = local_html_path
+                sheet.cell(row=row_num, column=html_url_col).value = f"本地HTML ({row_num}_{data_type})"
+                sheet.cell(row=row_num, column=html_url_col).style = "Hyperlink"
+            else:
+                sheet.cell(row=row_num, column=html_url_col, value='HTML下载失败')
         else:
             # 清空原有可能存在的url
             sheet.cell(row=row_num, column=html_url_col, value="")
     except Exception as e:
-        sheet.cell(row=row_num, column=html_url_col, value='生成html链接失败')
-        print('生成html链接失败')
+        sheet.cell(row=row_num, column=html_url_col, value='处理HTML链接失败')
+        print(f'处理行 {row_num} HTML链接失败: {str(e)}')
+
+
+def download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir):
+    """从S3下载HTML文件到对应sheet的HTML目录并返回本地路径"""
+    try:
+        # 生成本地文件名，避免重复
+        filename = f"htmlbody_{data_type}_row{row_num}.html"
+        local_path = os.path.join(html_dir, filename)
+
+        # 下载S3文件到本地
+        s3_client.download_file(bucket, s3_key, local_path)
+        print(f"已下载HTML文件到: {local_path}")
+        return local_path
+    except Exception as e:
+        print(f"下载HTML文件失败 (S3 key: {s3_key}): {str(e)}")
+        return None
 
 
 def build_request_body(s3_client, html_path, subject, sender):

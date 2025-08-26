@@ -50,8 +50,14 @@ queries = {
     WHERE "email" IN ('yi.z@seel.com')
     AND "business_type" = 'ORDER' 
     ORDER BY "email", "created_ts" DESC;
+    """,
+    "all": """
+    SELECT "html_body", "subject", "sender" 
+    FROM "EmailMessage" 
+    WHERE "email" IN ('mstar@seel.com')
+    AND ("business_type" != 'RETURN' OR "business_type" IS NULL)
+    ORDER BY "email", "created_ts" DESC;
     """
-
 }
 
 

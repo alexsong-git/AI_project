@@ -1,4 +1,4 @@
-python email_parsing/读取数据.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx order
-python email_parsing/请求接口.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx order
-python email_parsing/比较结果.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx order
+python email_parsing/读取数据.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
+python email_parsing/请求接口.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
+python email_parsing/比较结果.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
 

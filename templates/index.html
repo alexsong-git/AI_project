@@ -1,147 +1,355 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Parser Platform</title>
+    <title>邮件打标工具 - Email Tagging Tool</title>
+
+    <!-- JSON Editor CSS -->
+    <link href="https://unpkg.com/jsoneditor@latest/dist/jsoneditor.min.css" rel="stylesheet" type="text/css">
+
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+        }
+
+        .main-container {
             display: flex;
             height: 100vh;
+            width: 100%;
         }
+
         .panel {
             padding: 10px;
             overflow: auto;
             box-sizing: border-box;
         }
+
         #left-panel {
+            flex: 0 0 50%;
             width: 50%;
-            background-color: #f0f0f0;
-            border-right: 1px solid #ccc;
+            background-color: #f8f9fa;
+            border-right: 2px solid #dee2e6;
+            position: relative;
         }
+
         #right-panel {
+            flex: 0 0 50%;
             width: 50%;
             display: flex;
             flex-direction: column;
         }
+
+
         #response-panel {
-            height: 50%;
+            height: 60px;
             background-color: #f9f9f9;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 2px solid #dee2e6;
+            position: relative;
+            transition: height 0.3s ease;
+            overflow: hidden;
         }
-        #expect-panel {
+
+        #response-panel.expanded {
             height: 50%;
-            background-color: #f5f5f5;
         }
+
+        #expect-panel {
+            flex: 1;
+            background-color: #f5f5f5;
+            position: relative;
+        }
+
+        #expect-panel.collapsed {
+            height: calc(100% - 60px);
+        }
+
+        /* JSON编辑器容器 */
+        .json-editor-container {
+            height: calc(100% - 100px);
+            margin: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* 当API Response面板收起时，隐藏编辑器 */
+        #response-panel:not(.expanded) .json-editor-container {
+            display: none;
+        }
+
+        /* 只在JSON编辑器中隐藏图片，HTML内容中正常显示 */
+        .json-editor-container img {
+            display: none !important;
+        }
+
+
+
+        .json-editor {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* 面板标题优化 */
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-bottom: 1px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #495057;
+            margin: 0;
+        }
+
+        .panel-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .quick-btn {
+            padding: 5px 12px;
+            font-size: 12px;
+            border: 1px solid #6c757d;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .quick-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .quick-btn.primary {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .quick-btn.primary:hover {
+            background-color: #0056b3;
+        }
+
+        .quick-btn.warning {
+            background-color: #ffc107;
+            color: #000;
+        }
+
+        .quick-btn.warning:hover {
+            background-color: #e0a800;
+        }
+
         pre {
             width: 100%;
             height: 70%;
-            font-family: monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             white-space: pre-wrap;
             background: white;
             padding: 10px;
             border: 1px solid #ddd;
             overflow: auto;
+            font-size: 13px;
+            line-height: 1.4;
         }
+
         .request-item {
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
             cursor: pointer;
             position: relative;
+            transition: all 0.2s;
+            margin: 2px 8px;
+            border-radius: 6px;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
+
         .request-item:hover {
-            background-color: #e0e0e0;
+            background-color: #e3f2fd;
+            transform: translateX(2px);
         }
-        .active {
-            background-color: #d0d0d0;
+
+        .request-item.active {
+            background-color: #1976d2;
+            color: white;
+            box-shadow: 0 3px 6px rgba(25, 118, 210, 0.3);
         }
+
+        .request-item.active .request-number {
+            color: #bbdefb;
+        }
+
+        .request-item.tagged {
+            border-left: 4px solid #4caf50;
+        }
+
+        .request-item.tagged::after {
+            content: "✓";
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        /* 请求项内容布局 */
+        .request-item {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .request-item-content {
+            flex: 1;
+        }
+
+        /* 有修改按钮样式 */
+        .modification-btn {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .modification-btn:hover {
+            background: linear-gradient(135deg, #f57c00, #e65100);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(255, 152, 0, 0.4);
+        }
+
+        .modification-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+        }
+
+        /* 智能diff样式 */
+        .smart-diff-container {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .diff-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 4px solid transparent;
+        }
+
+        .diff-item.added {
+            background-color: #d4edda;
+            border-left-color: #28a745;
+        }
+
+        .diff-item.removed {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+        }
+
+        .diff-item.unchanged {
+            background-color: #f1f3f4;
+            border-left-color: #6c757d;
+            opacity: 0.7;
+        }
+
+        .diff-path {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .diff-content {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .diff-item.added .diff-content {
+            color: #155724;
+        }
+
+        .diff-item.removed .diff-content {
+            color: #721c24;
+        }
+
+        .json-content {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 0;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
         .button-container {
             margin: 10px 0;
         }
+
         button {
             padding: 8px 16px;
             margin-right: 10px;
             cursor: pointer;
         }
+
         .status-success {
             color: green;
         }
+
         .status-error {
             color: red;
         }
+
         .refresh-btn {
             margin-left: 10px;
         }
-        .html-toggle {
-            color: #0066cc;
-            text-decoration: underline;
-            cursor: pointer;
-            font-size: 0.9em;
-            margin-left: 10px;
-            display: inline-block;
-        }
-        .html-files-container {
-            display: none;
-            margin-top: 10px;
-            margin-left: 20px;
-            padding: 10px;
-            background-color: #e8e8e8;
-            border-radius: 4px;
-        }
-        .html-content-container {
-            margin-top: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .html-content-header {
-            background-color: #f0f0f0;
-            padding: 5px 10px;
-            font-weight: bold;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-        }
-        .html-content-close {
-            cursor: pointer;
-            color: #666;
-        }
-        .html-content-close:hover {
-            color: #333;
-        }
-        .html-content {
-            padding: 10px;
-            background-color: white;
-            max-height: 800px;
-            overflow: auto;
-        }
-        .html-file-link {
-            display: block;
-            color: #0066cc;
-            text-decoration: underline;
-            margin: 5px 0;
-            cursor: pointer;
-        }
-        .html-file-link:hover {
-            color: #004080;
-        }
+
+
         .debug-info {
             font-size: 0.8em;
             color: #666;
             margin-top: 5px;
             font-style: italic;
         }
+
         .html-count {
-            background-color: #4CAF50;
+            background-color: #2196F3;
             color: white;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 0.8em;
-            margin-left: 5px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            margin-left: 8px;
+            font-weight: 500;
         }
+
         .request-number {
             display: inline-block;
             width: 40px;
@@ -150,12 +358,14 @@
             font-weight: bold;
             color: #666;
         }
+
         .sort-info {
             font-size: 0.9em;
             color: #666;
             margin-bottom: 10px;
             padding-left: 5px;
         }
+
         .notification {
             position: fixed;
             bottom: 20px;
@@ -164,35 +374,611 @@
             background-color: #4CAF50;
             color: white;
             border-radius: 4px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
             display: none;
         }
+
         .notification.error {
             background-color: #f44336;
         }
+
+        /* 弹出层样式 - 只覆盖左侧面板 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 3% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 95%;
+            max-height: 90%;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            background-color: #f0f0f0;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .modal-close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            border: none;
+            background: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #333;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow: auto;
+            max-height: calc(90vh - 120px);
+        }
+
+        .modal-tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .modal-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #666;
+        }
+
+        .modal-tab.active {
+            color: #0066cc;
+            border-bottom-color: #0066cc;
+        }
+
+        .modal-tab:hover {
+            background-color: #f5f5f5;
+        }
+
+        .modal-tab-content {
+            display: none;
+        }
+
+        .modal-tab-content.active {
+            display: block;
+        }
+
+        /* 弹出层中的链接和图片样式 */
+        .popup-link {
+            color: #007bff !important;
+            text-decoration: underline !important;
+            cursor: pointer !important;
+            transition: opacity 0.2s ease;
+        }
+
+        .popup-link:hover {
+            opacity: 0.8;
+            text-decoration: underline !important;
+        }
+
+        .popup-image {
+            cursor: help;
+            transition: opacity 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .popup-image:hover {
+            opacity: 0.9;
+            border: 1px solid #007bff;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+        }
+
+        .popup-bg-image {
+            cursor: help;
+            position: relative;
+        }
+
+        .popup-bg-image:hover {
+            opacity: 0.9;
+        }
+
+        /* 弹出层内容区域的样式优化 */
+        .modal-body a {
+            color: #007bff !important;
+            text-decoration: underline !important;
+        }
+
+        .modal-body a:hover {
+            color: #0056b3 !important;
+            opacity: 0.8;
+        }
+
+        .modal-body img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        .modal-body img:hover {
+            opacity: 0.9;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.2);
+        }
+
+        /* JSON编辑器中重要字段的高亮样式 */
+        .jsoneditor-field.important-field,
+        .jsoneditor-value.important-value {
+            color: #dc3545 !important;
+            font-weight: bold !important;
+        }
+
+        .jsoneditor-field.important-field {
+            background-color: rgba(220, 53, 69, 0.1) !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+            position: relative;
+        }
+
+        /* 可点击URL字段样式 */
+        .jsoneditor-value.clickable-url {
+            color: #007bff !important;
+            text-decoration: underline !important;
+            cursor: pointer !important;
+            transition: color 0.2s ease;
+        }
+
+        .jsoneditor-value.clickable-url:hover {
+            color: #0056b3 !important;
+            background-color: rgba(0, 123, 255, 0.1) !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+        }
+
+        .jsoneditor-field.url-field {
+            color: #007bff !important;
+            font-weight: 500 !important;
+        }
+
+        /* 文本选择高亮功能样式 */
+        .json-search-highlight {
+            background-color: #ffeb3b !important;
+            color: #000 !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+            box-shadow: 0 0 8px rgba(255, 235, 59, 0.6) !important;
+            animation: highlightPulse 1s ease-in-out;
+        }
+
+        @keyframes highlightPulse {
+            0% {
+                background-color: #ffeb3b;
+                transform: scale(1);
+            }
+            50% {
+                background-color: #ffc107;
+                transform: scale(1.05);
+            }
+            100% {
+                background-color: #ffeb3b;
+                transform: scale(1);
+            }
+        }
+
+        /* 搜索结果提示框遮罩层 */
+        .search-toast-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 15000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: fadeInOverlay 0.3s ease;
+        }
+
+        @keyframes fadeInOverlay {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* 搜索结果提示框 */
+        .search-result-toast {
+            background: white;
+            color: #333;
+            padding: 24px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            min-width: 320px;
+            text-align: center;
+            transform: scale(0.8);
+            animation: toastPopIn 0.3s ease forwards;
+            border: 2px solid transparent;
+        }
+
+        @keyframes toastPopIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .search-result-toast.success {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+        }
+
+        .search-result-toast.error {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            color: #721c24;
+        }
+
+        .search-result-toast strong {
+            font-size: 18px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .search-result-toast .search-details {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 8px;
+        }
+
+        /* 自定义右键菜单样式 */
+        .custom-context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            min-width: 200px;
+            padding: 4px 0;
+            font-size: 14px;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .context-menu-item .icon {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+
+        .context-menu-separator {
+            height: 1px;
+            background-color: #e0e0e0;
+            margin: 4px 0;
+        }
+
+        .url-preview {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #666;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 4px 16px;
+            background-color: #f8f9fa;
+        }
+
+        /* 通用的重要字段样式 */
+        .jsoneditor .jsoneditor-tree .jsoneditor-field {
+            position: relative;
+        }
+
+        .important-field {
+            color: #dc3545 !important;
+            font-weight: bold !important;
+            background: linear-gradient(90deg, rgba(220, 53, 69, 0.1) 0%, transparent 100%) !important;
+            padding: 2px 4px !important;
+            border-radius: 3px !important;
+            border-left: 3px solid #dc3545 !important;
+        }
+
+        .important-field::before {
+            content: "";
+        }
+
+        /* 特别为shop_domain字段添加更明显的样式 */
+        .jsoneditor-field.important-field {
+            position: relative;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                background-color: rgba(220, 53, 69, 0.1);
+                box-shadow: 0 0 5px rgba(220, 53, 69, 0.3);
+            }
+            to {
+                background-color: rgba(220, 53, 69, 0.2);
+                box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+            }
+        }
+
+        /* 弹出层状态栏 */
+        .modal-status-bar {
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #6c757d;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            min-height: 32px;
+            display: flex;
+            align-items: center;
+        }
+
+        #modal-url-display {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Diff对比弹出层样式 */
+        .diff-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        .diff-modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 1400px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .diff-header {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 2px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .diff-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+            color: #495057;
+        }
+
+        .diff-close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            border: none;
+            background: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .diff-close:hover {
+            color: #333;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+        }
+
+        .diff-body {
+            display: flex;
+            height: calc(90vh - 120px);
+        }
+
+        .diff-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .diff-panel:last-child {
+            border-right: none;
+        }
+
+        .diff-panel-header {
+            background-color: #f1f3f4;
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .diff-panel-content {
+            flex: 1;
+            padding: 15px;
+            overflow: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .diff-added {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .diff-removed {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 2px 4px;
+            border-radius: 3px;
+            text-decoration: line-through;
+        }
+
+        .diff-modified {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .diff-actions {
+            padding: 15px 20px;
+            border-top: 2px solid #dee2e6;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .diff-info {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .diff-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .diff-btn {
+            padding: 8px 16px;
+            border: 1px solid #6c757d;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .diff-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .diff-btn.primary {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+
+        .diff-btn.primary:hover {
+            background-color: #218838;
+        }
+
+        .diff-btn.secondary {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+        }
+
+        .diff-btn.secondary:hover {
+            background-color: #545b62;
+        }
     </style>
 </head>
+
 <body>
+    <div class="main-container">
     <div id="left-panel" class="panel">
-        <h2>Request Files
-            <button id="refresh-btn" class="refresh-btn">Refresh</button>
-        </h2>
-        <div class="sort-info">已按编号升序排列</div>
+            <div class="panel-header">
+                <h3 class="panel-title">📧 待打标邮件列表</h3>
+                <div class="panel-actions">
+                    <button id="refresh-btn" class="quick-btn">🔄 刷新</button>
+                </div>
+            </div>
         <div id="requests-list"></div>
     </div>
 
     <div id="right-panel" class="panel">
         <div id="response-panel" class="panel">
-            <h2>API Response</h2>
-            <div id="response-status" class="status-success"></div>
-            <pre id="response-content"></pre>
+                <div class="panel-header">
+                    <h3 class="panel-title">🤖 算法输出结果 (API Response)</h3>
+                    <div class="panel-actions">
+                        <button class="quick-btn" id="toggle-response-btn">👁️ 展开</button>
+                        <button class="quick-btn" id="copy-response-btn">📋 复制</button>
+                        <button class="quick-btn" id="format-response-btn">🎨 格式化</button>
+                    </div>
+                </div>
+                <div class="json-editor-container">
+                    <div id="response-editor" class="json-editor"></div>
+                </div>
         </div>
         <div id="expect-panel" class="panel">
-            <h2>Expected Response</h2>
-            <pre id="expect-content" contenteditable="true"></pre>
-            <div class="button-container">
-                <button id="save-btn">Save Expectation</button>
-                <button id="reset-btn">Reset to Actual</button>
+                <div class="panel-header">
+                    <h3 class="panel-title">✅ 人工标注结果 (Expected Response) <small style="color: #6c757d; font-weight: normal;">⌨️ Ctrl+S保存 | Ctrl+Shift+S强制保存</small></h3>
+                    <div class="panel-actions">
+                        <button class="quick-btn" id="copy-from-response">📥 从上方复制</button>
+                        <button class="quick-btn warning" id="reset-expect-btn">🗑️ 删除标注恢复未标注状态</button>
+                        <button class="quick-btn primary" id="save-btn">💾 保存标注</button>
+                        <button class="quick-btn" id="reset-btn">🔄 重置</button>
+                    </div>
+                </div>
+                <div class="json-editor-container">
+                    <div id="expect-editor" class="json-editor"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -200,19 +986,168 @@
     <!-- 通知提示框 -->
     <div id="notification" class="notification"></div>
 
+
+
+    <!-- HTML内容弹出层 -->
+    <div id="htmlModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">HTML Content</h3>
+                <button class="modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs" id="modalTabs">
+                    <!-- HTML文件选项卡将在这里动态生成 -->
+                </div>
+                <div id="modalTabsContent">
+                    <!-- HTML内容将在这里显示 -->
+                </div>
+            </div>
+            <div class="modal-status-bar" id="modal-status-bar">
+                <span id="modal-url-display">🔍 鼠标悬停在链接或图片上查看完整URL | 💡 选中文本自动在JSON中搜索(忽略大小写) | 🖱️ 右键URL打开菜单 | ⌨️ Ctrl+S保存 Ctrl+Shift+S强制保存</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diff对比弹出层 -->
+    <div id="diffModal" class="diff-modal">
+        <div class="diff-modal-content">
+            <div class="diff-header">
+                <h3 class="diff-title">🔍 标注对比确认</h3>
+                <button class="diff-close" id="diffCloseBtn">&times;</button>
+            </div>
+            <div class="diff-body">
+                <div class="diff-panel">
+                    <div class="diff-panel-header">🤖 算法输出结果</div>
+                    <div class="diff-panel-content" id="diffOriginal"></div>
+                </div>
+                <div class="diff-panel">
+                    <div class="diff-panel-header">✅ 人工标注结果</div>
+                    <div class="diff-panel-content" id="diffModified"></div>
+                </div>
+            </div>
+            <div class="diff-actions">
+                <div class="diff-info">
+                    <span id="diffStats">检测到 0 处修改</span>
+                </div>
+                <div class="diff-buttons">
+                    <button class="diff-btn secondary" id="diffCancelBtn">取消</button>
+                    <button class="diff-btn primary" id="diffConfirmBtn">确认保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义右键菜单 -->
+    <div id="customContextMenu" class="custom-context-menu">
+        <div class="url-preview" id="contextMenuUrlPreview"></div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="openInNewTab">
+            <span class="icon">🔗</span>
+            <span>在新标签页中打开</span>
+        </div>
+        <div class="context-menu-item" id="copyUrl">
+            <span class="icon">📋</span>
+            <span>复制链接地址</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="cancelContextMenu">
+            <span class="icon">❌</span>
+            <span>取消</span>
+        </div>
+    </div>
+
+    <!-- JSON Editor JavaScript -->
+    <script src="https://unpkg.com/jsoneditor@latest/dist/jsoneditor.min.js"></script>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
+            // UI元素引用
             const requestsList = document.getElementById('requests-list');
-            const responseContent = document.getElementById('response-content');
-            const responseStatus = document.getElementById('response-status');
-            const expectContent = document.getElementById('expect-content');
             const saveBtn = document.getElementById('save-btn');
             const resetBtn = document.getElementById('reset-btn');
             const refreshBtn = document.getElementById('refresh-btn');
             const notification = document.getElementById('notification');
+            const htmlModal = document.getElementById('htmlModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalCloseBtn = document.getElementById('modalCloseBtn');
+            const modalTabs = document.getElementById('modalTabs');
+            const modalTabsContent = document.getElementById('modalTabsContent');
 
+            // Diff弹出层元素
+            const diffModal = document.getElementById('diffModal');
+            const diffCloseBtn = document.getElementById('diffCloseBtn');
+            const diffCancelBtn = document.getElementById('diffCancelBtn');
+            const diffConfirmBtn = document.getElementById('diffConfirmBtn');
+            const diffOriginal = document.getElementById('diffOriginal');
+            const diffModified = document.getElementById('diffModified');
+            const diffStats = document.getElementById('diffStats');
+
+            // UI元素
+            const toggleResponseBtn = document.getElementById('toggle-response-btn');
+            const copyResponseBtn = document.getElementById('copy-response-btn');
+            const copyFromResponseBtn = document.getElementById('copy-from-response');
+            const formatResponseBtn = document.getElementById('format-response-btn');
+            const resetExpectBtn = document.getElementById('reset-expect-btn');
+            const responsePanel = document.getElementById('response-panel');
+            const expectPanel = document.getElementById('expect-panel');
+
+            // 右键菜单元素
+            const customContextMenu = document.getElementById('customContextMenu');
+            const contextMenuUrlPreview = document.getElementById('contextMenuUrlPreview');
+            const openInNewTabBtn = document.getElementById('openInNewTab');
+            const copyUrlBtn = document.getElementById('copyUrl');
+            const cancelContextMenuBtn = document.getElementById('cancelContextMenu');
+
+            // 当前右键菜单的URL
+            let currentContextUrl = null;
+
+            // JSON编辑器实例
+            let responseEditor = null;
+            let expectEditor = null;
+
+            // 状态变量
             let currentRequestId = null;
             let currentResponse = null;
+            let allRequests = [];
+            let taggedRequests = new Set(); // 记录已标注的请求
+            let isResponsePanelExpanded = false; // API Response面板展开状态
+
+            // 初始化JSON编辑器
+            function initializeJsonEditors() {
+                // 响应编辑器（只读）
+                const responseContainer = document.getElementById('response-editor');
+                responseEditor = new JSONEditor(responseContainer, {
+                    mode: 'view',
+                    modes: ['view', 'text'],
+                    search: true,
+                    navigationBar: false,
+                    onModeChange: function (newMode, oldMode) {
+                        if (newMode === 'view') {
+                            setTimeout(() => {
+                                responseEditor.expandAll();
+                                highlightImportantFields();
+                            }, 150);
+                        }
+                    }
+                });
+
+                // 期望结果编辑器（可编辑）
+                const expectContainer = document.getElementById('expect-editor');
+                expectEditor = new JSONEditor(expectContainer, {
+                    mode: 'tree',
+                    modes: ['tree', 'code', 'text'],
+                    search: true,
+                    onModeChange: function (newMode, oldMode) {
+                        if (newMode === 'tree') {
+                            setTimeout(() => {
+                                expectEditor.expandAll();
+                                highlightImportantFields();
+                            }, 150);
+                        }
+                    }
+                });
+            }
 
             // 显示通知
             function showNotification(message, isError = false) {
@@ -229,37 +1164,100 @@
                 }, 3000);
             }
 
-            // 加载请求列表
-            loadRequests();
 
-            // 刷新按钮
-            refreshBtn.addEventListener('click', loadRequests);
 
-            // 重置期望值为实际响应
-            resetBtn.addEventListener('click', function() {
-                if (currentResponse) {
-                    expectContent.textContent = JSON.stringify(currentResponse, null, 2);
+
+
+
+
+            // 快捷键支持
+            function setupKeyboardShortcuts() {
+                document.addEventListener('keydown', function (e) {
+                    // 阻止在编辑器中触发快捷键
+                    if (e.target.closest('.jsoneditor')) return;
+
+                    if (e.ctrlKey || e.metaKey) {
+                        switch (e.key) {
+                            case 's':
+                                e.preventDefault();
+                                if (e.shiftKey) {
+                                    // Ctrl+Shift+S: 强制保存（即使没有差异）
+                                    console.log('快捷键强制保存');
+                                    saveExpectation(true, true);
+                                    showNotification('⚡ 快捷键强制保存成功');
+                                } else {
+                                    // Ctrl+S: 正常保存逻辑
+                                    console.log('快捷键正常保存');
+                                    saveExpectation();
+                                }
+                                break;
+                            case 'r':
+                                e.preventDefault();
+                                resetToResponse();
+                                break;
+                        }
+                    } else {
+                        switch (e.key) {
+                            case 'Escape':
+                                if (diffModal.style.display === 'block') {
+                                    closeDiffModal();
+                                } else if (htmlModal.style.display === 'block') {
+                                    closeHtmlModal();
+                                }
+                                break;
+                        }
+                    }
+                });
+            }
+
+            // 从API Response复制到Expected Response
+            function copyFromResponse() {
+                if (responseEditor && expectEditor) {
+                    try {
+                        const responseData = responseEditor.get();
+                        expectEditor.set(responseData);
+                        // 设置数据后自动展开
+                        setTimeout(() => {
+                            expectEditor.expandAll();
+                            highlightImportantFields();
+                        }, 150);
+                        showNotification('已从API Response复制数据');
+                    } catch (err) {
+                        showNotification('复制失败: ' + err.message, true);
+                    }
                 }
-            });
+            }
 
-            // 保存期望值
-            saveBtn.addEventListener('click', function() {
-                if (!currentRequestId) return;
+            // 重置到API Response
+            function resetToResponse() {
+                if (responseEditor && expectEditor && currentResponse) {
+                    try {
+                        expectEditor.set(currentResponse);
+                        // 设置数据后自动展开
+                        setTimeout(() => {
+                            expectEditor.expandAll();
+                            highlightImportantFields();
+                        }, 150);
+                        showNotification('已重置为API Response');
+                    } catch (err) {
+                        showNotification('重置失败: ' + err.message, true);
+                    }
+                }
+            }
 
-                const newExpect = expectContent.textContent;
+            // 保存期望结果
+            function saveExpectation(showMessage = true, forceMarkAsTagged = false) {
+                if (!currentRequestId || !expectEditor) return;
+
                 try {
-                    JSON.parse(newExpect); // 验证JSON格式
-                } catch (e) {
-                    showNotification('Invalid JSON format: ' + e.message, true);
-                    return;
-                }
+                    const expectData = expectEditor.get();
 
                 fetch(`/api/update_expect/${currentRequestId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({expect: JSON.parse(newExpect)})
+                        body: JSON.stringify({ expect: expectData })
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -270,17 +1268,1495 @@
                     return response.json();
                 })
                 .then(data => {
+                            // 保存成功后，标记为已标注（因为现在存在expectation文件了）
+                            taggedRequests.add(currentRequestId);
+                            updateRequestItemStatus(currentRequestId, true);
+                            console.log('保存成功，标记为已标注（存在expectation文件）');
+
+                            if (showMessage) {
                     if (data.status === 'success') {
-                        showNotification(data.message || 'Expectation saved successfully!');
+                                    showNotification('✅ ' + (data.message || '标注保存成功！'));
                     } else {
-                        showNotification(data.message || 'Saved locally but failed to upload to S3', true);
+                                    showNotification('⚠️ ' + (data.message || '本地保存成功，但S3上传失败'), true);
+                                }
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showNotification('Error saving expectation: ' + error.message, true);
-                });
+                            if (showMessage) {
+                                showNotification('❌ 保存失败: ' + error.message, true);
+                            }
+                        });
+                } catch (err) {
+                    if (showMessage) {
+                        showNotification('❌ JSON格式错误: ' + err.message, true);
+                    }
+                }
+            }
+
+            // 更新请求项状态
+            function updateRequestItemStatus(requestId, isTagged) {
+                const requestItem = document.querySelector(`[data-id="${requestId}"]`);
+                if (requestItem) {
+                    if (isTagged) {
+                        requestItem.classList.add('tagged');
+                    } else {
+                        requestItem.classList.remove('tagged');
+                    }
+                }
+            }
+
+            // 弹出层控制函数
+            function openHtmlModal(requestId, requestName) {
+                modalTitle.textContent = `HTML Content - ${requestName}`;
+                htmlModal.style.display = 'block';
+                loadHtmlFilesForModal(requestId);
+            }
+
+            function closeHtmlModal() {
+                htmlModal.style.display = 'none';
+                modalTabs.innerHTML = '';
+                modalTabsContent.innerHTML = '';
+                // 关闭弹出层时清除JSON编辑器中的搜索高亮
+                clearJsonHighlights();
+            }
+
+            // 关闭弹出层事件
+            modalCloseBtn.addEventListener('click', closeHtmlModal);
+
+            // 点击弹出层背景关闭
+            htmlModal.addEventListener('click', function (e) {
+                if (e.target === htmlModal) {
+                    closeHtmlModal();
+                }
             });
+
+            // ESC键关闭弹出层
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && htmlModal.style.display === 'block') {
+                    closeHtmlModal();
+                }
+            });
+
+            // 为弹出层加载HTML文件
+            function loadHtmlFilesForModal(requestId) {
+                modalTabs.innerHTML = '<p>Loading HTML files...</p>';
+                modalTabsContent.innerHTML = '';
+
+                fetch(`/api/html_files/${requestId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load HTML files');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        modalTabs.innerHTML = '';
+                        modalTabsContent.innerHTML = '';
+
+                        if (data.html_files && data.html_files.length > 0) {
+                            data.html_files.forEach((file, index) => {
+                                // 创建选项卡
+                                const tab = document.createElement('div');
+                                tab.className = 'modal-tab';
+                                if (index === 0) tab.classList.add('active');
+                                tab.textContent = file;
+                                tab.addEventListener('click', function () {
+                                    // 切换选项卡
+                                    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+                                    document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+                                    this.classList.add('active');
+                                    document.getElementById(`tab-content-${index}`).classList.add('active');
+                                });
+                                modalTabs.appendChild(tab);
+
+                                // 创建内容区域
+                                const content = document.createElement('div');
+                                content.className = 'modal-tab-content';
+                                content.id = `tab-content-${index}`;
+                                if (index === 0) content.classList.add('active');
+                                content.innerHTML = '<p>Loading HTML content...</p>';
+                                modalTabsContent.appendChild(content);
+
+                                // 加载HTML内容
+                                fetch(`/api/html_body_file/${requestId}?file=${encodeURIComponent(file)}`)
+                                    .then(response => {
+                                        if (!response.ok) {
+                                            throw new Error('Failed to load HTML content');
+                                        }
+                                        return response.text();
+                                    })
+                                                        .then(html => {
+                        // 处理HTML内容，添加新窗口打开和URL提示
+                        const processedHtml = processHtmlContent(html);
+                        content.innerHTML = processedHtml;
+
+                        // 设置URL悬停事件（每次加载新内容后都要重新设置）
+                        setupModalUrlEvents();
+                    })
+                                    .catch(error => {
+                                        console.error('Error loading HTML content:', error);
+                                        content.innerHTML = `<p class="status-error">Error loading HTML: ${error.message}</p>`;
+                                    });
+                            });
+                        } else {
+                            modalTabs.innerHTML = '<p>No HTML files found</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading HTML files:', error);
+                        modalTabs.innerHTML = `<p class="status-error">Error loading HTML files: ${error.message}</p>`;
+                    });
+            }
+
+            // 显示修改差异对比
+            function showModificationDiff(requestId) {
+                console.log('显示修改差异对比，请求ID:', requestId);
+
+                // 先加载请求详情
+                fetch(`/api/request/${requestId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load request details');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('加载数据用于diff对比:', data);
+
+                        // 使用现有的diff功能显示对比
+                        const originalData = data.response;
+                        const modifiedData = data.expect;
+
+                        // 设置diff模态框标题
+                        const diffTitle = document.querySelector('#diffModal h3');
+                        if (diffTitle) {
+                            diffTitle.textContent = `修改内容差异对比 - ${data.name}`;
+                        }
+
+                        // 使用showDiffModal显示差异对比（不显示确认按钮）
+                        showDiffModal(originalData, modifiedData, false);
+                    })
+                    .catch(error => {
+                        console.error('加载diff数据失败:', error);
+                        showNotification('加载差异对比失败: ' + error.message, true);
+                    });
+            }
+
+            // 初始化应用
+            function initializeApp() {
+                initializeJsonEditors();
+                setupKeyboardShortcuts();
+                setupEventListeners();
+                setupModalUrlEvents();
+                setupContextMenu();
+                setupGlobalUrlClickDelegation();
+                loadRequests();
+            }
+
+            // JSON差异对比功能
+            // 深度比较两个JSON对象是否语义相同
+            function deepEqual(obj1, obj2) {
+                if (obj1 === obj2) {
+                    return true;
+                }
+
+                if (obj1 == null || obj2 == null) {
+                    return obj1 === obj2;
+                }
+
+                if (typeof obj1 !== typeof obj2) {
+                    return false;
+                }
+
+                if (typeof obj1 !== 'object') {
+                    return obj1 === obj2;
+                }
+
+                if (Array.isArray(obj1) !== Array.isArray(obj2)) {
+                    return false;
+                }
+
+                const keys1 = Object.keys(obj1);
+                const keys2 = Object.keys(obj2);
+
+                if (keys1.length !== keys2.length) {
+                    return false;
+                }
+
+                for (let key of keys1) {
+                    if (!keys2.includes(key)) {
+                        return false;
+                    }
+
+                    if (!deepEqual(obj1[key], obj2[key])) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            // 智能JSON差异检测
+            function getJsonDifferences(obj1, obj2, path = '') {
+                const differences = [];
+
+                // 处理null/undefined情况
+                if (obj1 === null || obj1 === undefined || obj2 === null || obj2 === undefined) {
+                    if (obj1 !== obj2) {
+                        differences.push({
+                            path: path || 'root',
+                            type: 'modified',
+                            oldValue: obj1,
+                            newValue: obj2
+                        });
+                    }
+                    return differences;
+                }
+
+                // 处理基础类型
+                if (typeof obj1 !== 'object' || typeof obj2 !== 'object') {
+                    if (obj1 !== obj2) {
+                        differences.push({
+                            path: path || 'root',
+                            type: 'modified',
+                            oldValue: obj1,
+                            newValue: obj2
+                        });
+                    }
+                    return differences;
+                }
+
+                // 处理数组
+                if (Array.isArray(obj1) || Array.isArray(obj2)) {
+                    if (Array.isArray(obj1) !== Array.isArray(obj2)) {
+                        differences.push({
+                            path: path || 'root',
+                            type: 'modified',
+                            oldValue: obj1,
+                            newValue: obj2
+                        });
+                        return differences;
+                    }
+
+                    // 两个都是数组，比较长度和元素
+                    const maxLength = Math.max(obj1.length, obj2.length);
+                    for (let i = 0; i < maxLength; i++) {
+                        const currentPath = path ? `${path}[${i}]` : `[${i}]`;
+                        if (i >= obj1.length) {
+                            differences.push({
+                                path: currentPath,
+                                type: 'added',
+                                newValue: obj2[i]
+                            });
+                        } else if (i >= obj2.length) {
+                            differences.push({
+                                path: currentPath,
+                                type: 'removed',
+                                oldValue: obj1[i]
+                            });
+                        } else {
+                            differences.push(...getJsonDifferences(obj1[i], obj2[i], currentPath));
+                        }
+                    }
+                    return differences;
+                }
+
+                // 处理对象
+                const allKeys = new Set([...Object.keys(obj1), ...Object.keys(obj2)]);
+
+                for (const key of allKeys) {
+                    const currentPath = path ? `${path}.${key}` : key;
+
+                    if (!(key in obj1)) {
+                        // 新增字段
+                        differences.push({
+                            path: currentPath,
+                            type: 'added',
+                            newValue: obj2[key]
+                        });
+                    } else if (!(key in obj2)) {
+                        // 删除字段
+                        differences.push({
+                            path: currentPath,
+                            type: 'removed',
+                            oldValue: obj1[key]
+                        });
+                    } else {
+                        // 字段存在于两个对象中，递归比较
+                        differences.push(...getJsonDifferences(obj1[key], obj2[key], currentPath));
+                    }
+                }
+
+                return differences;
+            }
+
+            // 生成智能diff HTML显示
+            function generateSmartDiffHtml(differences, originalData, modifiedData) {
+                if (differences.length === 0) {
+                    return {
+                        originalHtml: '<pre class="json-content">' + JSON.stringify(originalData, null, 2) + '</pre>',
+                        modifiedHtml: '<pre class="json-content">' + JSON.stringify(modifiedData, null, 2) + '</pre>'
+                    };
+                }
+
+                let originalHtml = '<div class="smart-diff-container">';
+                let modifiedHtml = '<div class="smart-diff-container">';
+
+                differences.forEach((diff, index) => {
+                    const pathDisplay = diff.path.replace(/\./g, ' → ');
+
+                    if (diff.type === 'added') {
+                        originalHtml += `<div class="diff-item unchanged">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">-</div>
+                        </div>`;
+
+                        modifiedHtml += `<div class="diff-item added">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">+ ${JSON.stringify(diff.newValue, null, 2)}</div>
+                        </div>`;
+                    } else if (diff.type === 'removed') {
+                        originalHtml += `<div class="diff-item removed">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">- ${JSON.stringify(diff.oldValue, null, 2)}</div>
+                        </div>`;
+
+                        modifiedHtml += `<div class="diff-item unchanged">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">-</div>
+                        </div>`;
+                    } else if (diff.type === 'modified') {
+                        originalHtml += `<div class="diff-item removed">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">- ${JSON.stringify(diff.oldValue, null, 2)}</div>
+                        </div>`;
+
+                        modifiedHtml += `<div class="diff-item added">
+                            <div class="diff-path">${pathDisplay}</div>
+                            <div class="diff-content">+ ${JSON.stringify(diff.newValue, null, 2)}</div>
+                        </div>`;
+                    }
+                });
+
+                originalHtml += '</div>';
+                modifiedHtml += '</div>';
+
+                return { originalHtml, modifiedHtml };
+            }
+
+            function compareJSON(original, modified) {
+                // 首先进行深度语义比较
+                if (deepEqual(original, modified)) {
+                    return { diffs: [], count: 0 };
+                }
+
+                // 使用智能JSON差异检测
+                const differences = getJsonDifferences(original, modified);
+
+                console.log('智能diff检测到的差异:', differences);
+
+                return {
+                    diffs: differences,
+                    count: differences.length
+                };
+            }
+
+            // 高亮显示JSON差异
+            function highlightDifferences(original, modified) {
+                const originalLines = original.split('\n');
+                const modifiedLines = modified.split('\n');
+                const maxLines = Math.max(originalLines.length, modifiedLines.length);
+
+                let originalHtml = '';
+                let modifiedHtml = '';
+
+                for (let i = 0; i < maxLines; i++) {
+                    const origLine = originalLines[i] || '';
+                    const modLine = modifiedLines[i] || '';
+
+                    if (origLine === modLine) {
+                        // 相同的行
+                        originalHtml += escapeHtml(origLine) + '\n';
+                        modifiedHtml += escapeHtml(modLine) + '\n';
+                    } else {
+                        // 不同的行
+                        if (origLine === '') {
+                            // 新增行
+                            originalHtml += '\n';
+                            modifiedHtml += `<span class="diff-added">${escapeHtml(modLine)}</span>\n`;
+                        } else if (modLine === '') {
+                            // 删除行
+                            originalHtml += `<span class="diff-removed">${escapeHtml(origLine)}</span>\n`;
+                            modifiedHtml += '\n';
+                        } else {
+                            // 修改行
+                            originalHtml += `<span class="diff-removed">${escapeHtml(origLine)}</span>\n`;
+                            modifiedHtml += `<span class="diff-added">${escapeHtml(modLine)}</span>\n`;
+                        }
+                    }
+                }
+
+                return { originalHtml, modifiedHtml };
+            }
+
+            // HTML转义函数
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // 显示Diff对比弹出层
+            function showDiffModal(originalData, modifiedData, showConfirmButton = true) {
+                const comparison = compareJSON(originalData, modifiedData);
+
+                // 使用智能diff显示
+                const smartDiff = generateSmartDiffHtml(comparison.diffs, originalData, modifiedData);
+
+                // 设置内容
+                diffOriginal.innerHTML = smartDiff.originalHtml;
+                diffModified.innerHTML = smartDiff.modifiedHtml;
+
+                // 更新统计信息
+                let statsText = '';
+                if (comparison.count === 0) {
+                    statsText = '无差异';
+                } else {
+                    const addedCount = comparison.diffs.filter(d => d.type === 'added').length;
+                    const removedCount = comparison.diffs.filter(d => d.type === 'removed').length;
+                    const modifiedCount = comparison.diffs.filter(d => d.type === 'modified').length;
+
+                    const parts = [];
+                    if (addedCount > 0) parts.push(`新增 ${addedCount} 项`);
+                    if (removedCount > 0) parts.push(`删除 ${removedCount} 项`);
+                    if (modifiedCount > 0) parts.push(`修改 ${modifiedCount} 项`);
+
+                    statsText = `共 ${comparison.count} 处差异: ${parts.join(', ')}`;
+                }
+                diffStats.textContent = statsText;
+
+                // 控制确认按钮的显示
+                const diffConfirmBtn = document.getElementById('diffConfirmBtn');
+                if (diffConfirmBtn) {
+                    diffConfirmBtn.style.display = showConfirmButton ? 'inline-block' : 'none';
+                }
+
+                // 显示弹出层
+                diffModal.style.display = 'block';
+
+                return comparison.count > 0;
+            }
+
+            // 关闭Diff弹出层
+            function closeDiffModal() {
+                diffModal.style.display = 'none';
+            }
+
+            // 切换API Response面板显示/隐藏
+            function toggleResponsePanel() {
+                isResponsePanelExpanded = !isResponsePanelExpanded;
+
+                if (isResponsePanelExpanded) {
+                    responsePanel.classList.add('expanded');
+                    expectPanel.classList.add('collapsed');
+                    toggleResponseBtn.textContent = '👁️ 收起';
+                    toggleResponseBtn.classList.add('primary');
+                } else {
+                    responsePanel.classList.remove('expanded');
+                    expectPanel.classList.remove('collapsed');
+                    toggleResponseBtn.textContent = '👁️ 展开';
+                    toggleResponseBtn.classList.remove('primary');
+                }
+            }
+
+            // 设置事件监听器
+            function setupEventListeners() {
+                // 刷新按钮
+                refreshBtn.addEventListener('click', loadRequests);
+
+                // 展开/收起API Response面板
+                toggleResponseBtn.addEventListener('click', toggleResponsePanel);
+
+                // 保存按钮 - 先显示diff对比
+                saveBtn.addEventListener('click', () => showSaveDiff());
+
+                // 重置按钮
+                resetBtn.addEventListener('click', resetToResponse);
+
+                // 重置为原始数据按钮
+                resetExpectBtn.addEventListener('click', function() {
+                    if (!currentRequestId) {
+                        showNotification('请先选择邮件', true);
+                        return;
+                    }
+
+                    if (confirm('确定要删除标注文件并恢复为未标注状态吗？\n\n这将：\n• 删除S3中的expectation文件\n• 恢复为原始API Response数据\n• 标记为未标注状态')) {
+                        fetch(`/api/reset_expect/${currentRequestId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => response.json())
+                            .then(data => {
+                            if (data.status === 'success') {
+                                // 更新expectEditor
+                                if (expectEditor && data.expect) {
+                                    expectEditor.set(data.expect);
+                                    setTimeout(() => {
+                                        expectEditor.expandAll();
+                                        highlightImportantFields();
+                                    }, 150);
+                                }
+                                showNotification('✅ ' + data.message);
+
+                                // 移除已标注状态
+                                taggedRequests.delete(currentRequestId);
+                                updateRequestItemStatus(currentRequestId, false);
+                                } else {
+                                showNotification('⚠️ ' + data.message, true);
+                                }
+                            })
+                            .catch(error => {
+                            console.error('重置失败:', error);
+                            showNotification('❌ 重置失败: ' + error.message, true);
+                            });
+                    }
+                });
+
+                // 复制按钮
+                copyResponseBtn.addEventListener('click', function () {
+                    if (responseEditor) {
+                        try {
+                            const data = responseEditor.get();
+                            copyToClipboard(JSON.stringify(data, null, 2));
+                        } catch (err) {
+                            showNotification('复制失败: ' + err.message, true);
+                        }
+                    }
+                });
+
+                // 从上方复制按钮
+                copyFromResponseBtn.addEventListener('click', copyFromResponse);
+
+                // 格式化按钮
+                formatResponseBtn.addEventListener('click', function () {
+                    if (responseEditor) {
+                        responseEditor.expandAll();
+                        highlightImportantFields();
+                        showNotification('已展开所有节点');
+                    }
+                });
+
+                // Diff弹出层事件监听器
+                diffCloseBtn.addEventListener('click', closeDiffModal);
+                diffCancelBtn.addEventListener('click', closeDiffModal);
+                diffConfirmBtn.addEventListener('click', function () {
+                    closeDiffModal();
+                    saveExpectation(); // 确认后真正保存
+                });
+
+                // 点击弹出层背景关闭
+                diffModal.addEventListener('click', function (e) {
+                    if (e.target === diffModal) {
+                        closeDiffModal();
+                    }
+                });
+            }
+
+            // 显示保存前的diff对比
+            function showSaveDiff() {
+                if (!currentRequestId || !expectEditor || !currentResponse) {
+                    showNotification('无法进行对比，请先选择邮件', true);
+                    return;
+                }
+
+                try {
+                    const modifiedData = expectEditor.get();
+                    const originalData = currentResponse;
+
+                    // 添加详细的调试信息
+                    console.log('=== DIFF 调试信息 ===');
+                    console.log('原始数据类型:', typeof originalData);
+                    console.log('修改数据类型:', typeof modifiedData);
+                    console.log('原始数据:', originalData);
+                    console.log('修改数据:', modifiedData);
+
+                    // 检查JSON字符串
+                    const originalStr = JSON.stringify(originalData, null, 2);
+                    const modifiedStr = JSON.stringify(modifiedData, null, 2);
+                    console.log('原始JSON字符串长度:', originalStr.length);
+                    console.log('修改JSON字符串长度:', modifiedStr.length);
+                    console.log('字符串是否相等:', originalStr === modifiedStr);
+
+                    // 深度比较结果
+                    const isEqual = deepEqual(originalData, modifiedData);
+                    console.log('深度比较结果:', isEqual);
+
+                    // 检查是否有修改 - 使用深度语义比较
+                    if (isEqual) {
+                        // 即使没有差异也询问用户是否要保存
+                        const userConfirmed = confirm('💡 数据未发生变化，是否仍要保存标注结果？\n\n🔸 点击"确定"：保存当前结果并标记为已标注\n🔸 点击"取消"：跳过保存\n\n提示：保存无差异数据有助于确认该邮件已经过人工审核。');
+
+                        if (userConfirmed) {
+                            console.log('用户选择强制保存未修改的数据');
+                            // 传递 forceMarkAsTagged = true 来强制标记为已标注
+                            saveExpectation(true, true);
+                            showNotification('✅ 已保存标注结果，该邮件已标记为已审核');
+                        } else {
+                            showNotification('⏹️ 已取消保存');
+                        }
+                        return;
+                    }
+
+                    // 如果仍然有差异，查找具体差异
+                    console.log('发现差异，开始查找具体位置...');
+                    findSpecificDifferences(originalData, modifiedData);
+
+                    // 显示diff对比
+                    showDiffModal(originalData, modifiedData);
+
+                } catch (err) {
+                    showNotification('❌ JSON格式错误，无法保存: ' + err.message, true);
+                }
+            }
+
+            // 查找具体的差异位置
+            function findSpecificDifferences(obj1, obj2, path = '') {
+                if (typeof obj1 !== typeof obj2) {
+                    console.log(`类型差异 ${path}:`, typeof obj1, 'vs', typeof obj2);
+                    return;
+                }
+
+                if (obj1 === obj2) {
+                    return;
+                }
+
+                if (typeof obj1 !== 'object' || obj1 === null || obj2 === null) {
+                    console.log(`值差异 ${path}:`, `"${obj1}"`, 'vs', `"${obj2}"`);
+                    console.log(`值详情 ${path}:`, {
+                        value1: obj1,
+                        value2: obj2,
+                        type1: typeof obj1,
+                        type2: typeof obj2,
+                        length1: typeof obj1 === 'string' ? obj1.length : 'N/A',
+                        length2: typeof obj2 === 'string' ? obj2.length : 'N/A'
+                    });
+                    return;
+                }
+
+                if (Array.isArray(obj1) !== Array.isArray(obj2)) {
+                    console.log(`数组/对象类型差异 ${path}:`, Array.isArray(obj1), 'vs', Array.isArray(obj2));
+                    return;
+                }
+
+                if (Array.isArray(obj1)) {
+                    if (obj1.length !== obj2.length) {
+                        console.log(`数组长度差异 ${path}:`, obj1.length, 'vs', obj2.length);
+                    }
+                    const maxLen = Math.max(obj1.length, obj2.length);
+                    for (let i = 0; i < maxLen; i++) {
+                        const newPath = `${path}[${i}]`;
+                        if (i >= obj1.length) {
+                            console.log(`缺少元素 ${newPath} in obj1`);
+                        } else if (i >= obj2.length) {
+                            console.log(`缺少元素 ${newPath} in obj2`);
+                        } else {
+                            findSpecificDifferences(obj1[i], obj2[i], newPath);
+                        }
+                    }
+                } else {
+                    const keys1 = Object.keys(obj1);
+                    const keys2 = Object.keys(obj2);
+                    const allKeys = new Set([...keys1, ...keys2]);
+
+                    for (let key of allKeys) {
+                        const newPath = path ? `${path}.${key}` : key;
+                        if (!(key in obj1)) {
+                            console.log(`缺少键 ${newPath} in obj1`);
+                        } else if (!(key in obj2)) {
+                            console.log(`缺少键 ${newPath} in obj2`);
+                        } else {
+                            findSpecificDifferences(obj1[key], obj2[key], newPath);
+                        }
+                    }
+                }
+            }
+
+            // 更新加载请求详情的函数
+            function loadRequestDetails(requestId) {
+                        currentRequestId = requestId;
+
+                        fetch(`/api/request/${requestId}`)
+                            .then(response => response.json())
+                            .then(data => {
+                        currentResponse = data.response;
+
+                        // 直接更新JSON编辑器，不过滤数据
+                        if (responseEditor) {
+                            responseEditor.set(data.response);
+                            // 设置数据后自动展开
+                            setTimeout(() => {
+                                responseEditor.expandAll();
+                                highlightImportantFields();
+                            }, 150);
+                        }
+                        if (expectEditor) {
+                            expectEditor.set(data.expect);
+                            // 设置数据后自动展开
+                            setTimeout(() => {
+                                expectEditor.expandAll();
+                                highlightImportantFields();
+                            }, 150);
+                        }
+
+                        // 检查是否已标注 - 基于expectation文件是否存在
+                        if (data.has_expectation_file) {
+                            taggedRequests.add(requestId);
+                            updateRequestItemStatus(requestId, true);
+                            console.log(`邮件 ${requestId} 存在expectation文件，标记为已标注`);
+                        } else {
+                            taggedRequests.delete(requestId);
+                            updateRequestItemStatus(requestId, false);
+                            console.log(`邮件 ${requestId} 不存在expectation文件，标记为未标注`);
+                        }
+                            })
+                            .catch(error => {
+                                console.error('Error loading request details:', error);
+                        showNotification('加载请求详情失败: ' + error.message, true);
+                    });
+            }
+
+            // 检查是否有显著差异（判断是否已标注）- 使用深度语义比较
+            function hasSignificantDifference(response, expect) {
+                return !deepEqual(response, expect);
+            }
+
+            // 处理HTML内容，添加新窗口打开和URL提示功能
+            function processHtmlContent(htmlContent) {
+                // 创建临时容器来解析HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+
+                // 处理所有链接：添加新窗口打开和URL提示
+                const links = tempDiv.querySelectorAll('a[href]');
+                links.forEach(link => {
+                    // 新窗口打开
+                    link.setAttribute('target', '_blank');
+                    link.setAttribute('rel', 'noopener noreferrer');
+
+                    // 添加URL提示，截断过长的URL
+                    const url = link.getAttribute('href');
+                    if (url && !link.getAttribute('title')) {
+                        const displayUrl = url.length > 80 ? url.substring(0, 80) + '...' : url;
+                        link.setAttribute('title', `🔗 打开链接: ${displayUrl}`);
+                    }
+
+                    // 添加样式类和悬停事件
+                    link.classList.add('popup-link');
+                    link.setAttribute('data-full-url', url);
+                });
+
+                // 处理所有图片：添加URL提示
+                const images = tempDiv.querySelectorAll('img[src]');
+                images.forEach(img => {
+                    const src = img.getAttribute('src');
+                    if (src && !img.getAttribute('title')) {
+                        const displaySrc = src.length > 80 ? src.substring(0, 80) + '...' : src;
+                        img.setAttribute('title', `🖼️ 图片地址: ${displaySrc}`);
+                    }
+
+                    // 添加样式类和悬停事件
+                    img.classList.add('popup-image');
+                    img.setAttribute('data-full-url', src);
+
+                    // 添加加载错误处理
+                    img.onerror = function() {
+                        this.style.border = '2px dashed #ccc';
+                        this.style.padding = '10px';
+                        this.alt = '图片加载失败: ' + src;
+                    };
+                });
+
+                // 处理background-image的元素
+                const elementsWithBg = tempDiv.querySelectorAll('*');
+                elementsWithBg.forEach(element => {
+                    const style = element.getAttribute('style');
+                    if (style && style.includes('background-image')) {
+                        // 提取background-image URL
+                        const bgMatch = style.match(/background-image:\s*url\(['"]?([^'"]+)['"]?\)/);
+                        if (bgMatch && bgMatch[1] && !element.getAttribute('title')) {
+                            const bgUrl = bgMatch[1];
+                            const displayBgUrl = bgUrl.length > 60 ? bgUrl.substring(0, 60) + '...' : bgUrl;
+                            element.setAttribute('title', `🖼️ 背景图片: ${displayBgUrl}`);
+                            element.classList.add('popup-bg-image');
+                            element.setAttribute('data-full-url', bgUrl);
+                        }
+                    }
+                });
+
+                return tempDiv.innerHTML;
+            }
+
+            // 右键菜单功能
+            function showContextMenu(x, y, url) {
+                currentContextUrl = url;
+                contextMenuUrlPreview.textContent = url;
+                customContextMenu.style.left = x + 'px';
+                customContextMenu.style.top = y + 'px';
+                customContextMenu.style.display = 'block';
+
+                // 确保菜单不会超出屏幕边界
+                const rect = customContextMenu.getBoundingClientRect();
+                if (rect.right > window.innerWidth) {
+                    customContextMenu.style.left = (x - rect.width) + 'px';
+                }
+                if (rect.bottom > window.innerHeight) {
+                    customContextMenu.style.top = (y - rect.height) + 'px';
+                }
+
+                console.log('显示右键菜单，URL:', url);
+            }
+
+            function hideContextMenu() {
+                customContextMenu.style.display = 'none';
+                currentContextUrl = null;
+                console.log('隐藏右键菜单');
+            }
+
+            // 复制文本到剪贴板
+            function copyToClipboard(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showNotification('✅ 已复制到剪贴板');
+                }).catch(err => {
+                    // 备选方案
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    showNotification('✅ 已复制到剪贴板');
+                });
+            }
+
+            // 设置右键菜单事件监听器
+            function setupContextMenu() {
+                console.log('设置右键菜单事件监听器...');
+
+                // 右键菜单项点击事件
+                openInNewTabBtn.addEventListener('click', function() {
+                    if (currentContextUrl) {
+                        window.open(currentContextUrl, '_blank', 'noopener,noreferrer');
+                        console.log('通过右键菜单打开URL:', currentContextUrl);
+                        showNotification('🔗 已在新标签页中打开链接');
+                    }
+                    hideContextMenu();
+                });
+
+                copyUrlBtn.addEventListener('click', function() {
+                    if (currentContextUrl) {
+                        copyToClipboard(currentContextUrl);
+                        console.log('复制URL:', currentContextUrl);
+                    }
+                    hideContextMenu();
+                });
+
+                cancelContextMenuBtn.addEventListener('click', function() {
+                    hideContextMenu();
+                });
+
+                // 点击其他地方隐藏菜单
+                document.addEventListener('click', function(e) {
+                    if (!customContextMenu.contains(e.target)) {
+                        hideContextMenu();
+                    }
+                });
+
+                // ESC键隐藏菜单
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        hideContextMenu();
+                    }
+                });
+
+                console.log('右键菜单事件监听器设置完成');
+            }
+
+            // 设置弹出层的URL悬停事件
+            function setupModalUrlEvents() {
+                const modalUrlDisplay = document.getElementById('modal-url-display');
+                if (!modalUrlDisplay) return;
+
+                // 为弹出层内容添加事件委托
+                const modalTabsContent = document.getElementById('modalTabsContent');
+                if (!modalTabsContent) return;
+
+                modalTabsContent.addEventListener('mouseover', function(e) {
+                    const target = e.target;
+                    let url = null;
+                    let type = '';
+
+                    if (target.tagName === 'A' && target.getAttribute('href')) {
+                        url = target.getAttribute('href');
+                        type = '🔗 链接';
+                    } else if (target.tagName === 'IMG' && target.getAttribute('src')) {
+                        url = target.getAttribute('src');
+                        type = '🖼️ 图片';
+                    } else if (target.getAttribute('data-full-url')) {
+                        url = target.getAttribute('data-full-url');
+                        type = '🖼️ 背景图片';
+                    }
+
+                    if (url) {
+                        modalUrlDisplay.textContent = `${type}: ${url}`;
+                        modalUrlDisplay.style.color = '#007bff';
+                    }
+                });
+
+                modalTabsContent.addEventListener('mouseout', function(e) {
+                    modalUrlDisplay.textContent = '🔍 鼠标悬停在链接或图片上查看完整URL | 💡 选中文本自动在JSON中搜索(忽略大小写) | 🖱️ 右键URL打开菜单';
+                    modalUrlDisplay.style.color = '#6c757d';
+                });
+
+                // 添加文本选择监听器
+                setupTextSelectionHighlight();
+            }
+
+            // 设置文本选择高亮功能
+            function setupTextSelectionHighlight() {
+                const modalTabsContent = document.getElementById('modalTabsContent');
+                if (!modalTabsContent) return;
+
+                // 监听鼠标抬起事件（文本选择完成）
+                modalTabsContent.addEventListener('mouseup', function(e) {
+                    setTimeout(() => {
+                        const selectedText = window.getSelection().toString().trim();
+                        if (selectedText && selectedText.length > 0) {
+                            console.log('选中文本:', selectedText);
+                            searchInJsonEditors(selectedText);
+                        }
+                    }, 100);
+                });
+
+                // 监听键盘选择事件
+                modalTabsContent.addEventListener('keyup', function(e) {
+                    setTimeout(() => {
+                        const selectedText = window.getSelection().toString().trim();
+                        if (selectedText && selectedText.length > 0) {
+                            console.log('键盘选中文本:', selectedText);
+                            searchInJsonEditors(selectedText);
+                        }
+                    }, 100);
+                });
+            }
+
+            // 在JSON编辑器中搜索并高亮文本
+            function searchInJsonEditors(searchText) {
+                console.log('开始搜索文本:', searchText);
+
+                // 清除之前的高亮
+                clearJsonHighlights();
+
+                let foundCount = 0;
+
+                // 搜索Response编辑器
+                if (responseEditor) {
+                    foundCount += highlightTextInJsonEditor(responseEditor, searchText, 'Response');
+                }
+
+                // 搜索Expect编辑器
+                if (expectEditor) {
+                    foundCount += highlightTextInJsonEditor(expectEditor, searchText, 'Expect');
+                }
+
+                // 显示搜索结果
+                showSearchResultToast(searchText, foundCount);
+
+                console.log(`搜索完成，找到 ${foundCount} 个匹配项`);
+            }
+
+            // 在特定JSON编辑器中高亮文本
+            function highlightTextInJsonEditor(editor, searchText, editorName) {
+                let foundCount = 0;
+
+                try {
+                    const editorContainer = editor.getEditor ? editor.getEditor().container : editor.container;
+                    if (!editorContainer) {
+                        console.log(`${editorName}编辑器容器未找到`);
+                        return 0;
+                    }
+
+                    // 搜索所有文本节点
+                    const walker = document.createTreeWalker(
+                        editorContainer,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+
+                    const textNodes = [];
+                    let node;
+                    // 忽略大小写进行搜索
+                    const searchTextLower = searchText.toLowerCase();
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.toLowerCase().includes(searchTextLower)) {
+                            textNodes.push(node);
+                        }
+                    }
+
+                    console.log(`在${editorName}编辑器中找到 ${textNodes.length} 个包含文本的节点`);
+
+                    // 高亮找到的文本
+                    textNodes.forEach(textNode => {
+                        const parent = textNode.parentElement;
+                        if (parent && !parent.classList.contains('json-search-highlight')) {
+                            const text = textNode.textContent;
+                            const regex = new RegExp(`(${escapeRegExp(searchText)})`, 'gi');
+
+                            if (regex.test(text)) {
+                                const highlightedText = text.replace(regex, '<span class="json-search-highlight">$1</span>');
+
+                                // 创建新的HTML内容
+                                const wrapper = document.createElement('span');
+                                wrapper.innerHTML = highlightedText;
+
+                                // 替换原文本节点
+                                parent.replaceChild(wrapper, textNode);
+                                foundCount++;
+
+                                console.log(`在${editorName}编辑器中高亮了文本:`, searchText);
+                            }
+                        }
+                    });
+
+                } catch (error) {
+                    console.error(`在${editorName}编辑器中搜索时出错:`, error);
+                }
+
+                return foundCount;
+            }
+
+            // 清除JSON编辑器中的高亮
+            function clearJsonHighlights() {
+                document.querySelectorAll('.json-search-highlight').forEach(element => {
+                    const parent = element.parentNode;
+                    parent.replaceChild(document.createTextNode(element.textContent), element);
+                    parent.normalize();
+                });
+
+                console.log('已清除之前的高亮');
+            }
+
+            // 转义正则表达式特殊字符
+            function escapeRegExp(string) {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            // 显示搜索结果提示
+            function showSearchResultToast(searchText, foundCount) {
+                // 移除之前的提示
+                const existingOverlay = document.querySelector('.search-toast-overlay');
+                if (existingOverlay) {
+                    existingOverlay.remove();
+                }
+
+                // 创建遮罩层
+                const overlay = document.createElement('div');
+                overlay.className = 'search-toast-overlay';
+
+                // 创建提示框
+                const toast = document.createElement('div');
+                toast.className = 'search-result-toast';
+
+                if (foundCount > 0) {
+                    toast.classList.add('success');
+                    toast.innerHTML = `
+                        <strong>✅ 找到匹配内容</strong>
+                        <div class="search-details">
+                            搜索: "${searchText}" (忽略大小写)<br>
+                            找到 ${foundCount} 个匹配项
+                        </div>
+                    `;
+                } else {
+                    toast.classList.add('error');
+                    toast.innerHTML = `
+                        <strong>❌ 内容不存在</strong>
+                        <div class="search-details">
+                            搜索: "${searchText}" (忽略大小写)<br>
+                            未找到匹配的内容
+                        </div>
+                    `;
+                }
+
+                // 将提示框添加到遮罩层中
+                overlay.appendChild(toast);
+                document.body.appendChild(overlay);
+
+                // 点击遮罩层关闭提示
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) {
+                        closeToastOverlay(overlay);
+                    }
+                });
+
+                // ESC键关闭提示
+                const escapeHandler = function(e) {
+                    if (e.key === 'Escape') {
+                        closeToastOverlay(overlay);
+                        document.removeEventListener('keydown', escapeHandler);
+                    }
+                };
+                document.addEventListener('keydown', escapeHandler);
+
+                // 3秒后自动移除
+                setTimeout(() => {
+                    if (overlay && overlay.parentNode) {
+                        closeToastOverlay(overlay);
+                        document.removeEventListener('keydown', escapeHandler);
+                    }
+                }, 3000);
+
+                function closeToastOverlay(overlayElement) {
+                    if (overlayElement && overlayElement.parentNode) {
+                        overlayElement.style.animation = 'fadeInOverlay 0.3s ease reverse';
+                        setTimeout(() => {
+                            if (overlayElement.parentNode) {
+                                overlayElement.remove();
+                            }
+                        }, 300);
+                    }
+                }
+            }
+
+            // 高亮重要字段并设置URL字段为可点击
+            function highlightImportantFields() {
+                console.log('开始高亮重要字段和设置URL点击');
+
+                // 重要字段列表
+                const importantFields = ['shop_domain', 'admin_domain', 'order_number'];
+                // URL字段列表
+                const urlFields = ['image_url', 'product_url'];
+
+                // 延迟执行，确保JSON编辑器已经渲染完成
+                setTimeout(() => {
+                    console.log('开始处理字段高亮，当前DOM中的jsoneditor-field数量:', document.querySelectorAll('.jsoneditor-field').length);
+
+                    // 清除之前的样式
+                    document.querySelectorAll('.important-field').forEach(el => {
+                        el.classList.remove('important-field');
+                    });
+                    document.querySelectorAll('.important-value').forEach(el => {
+                        el.classList.remove('important-value');
+                    });
+                    document.querySelectorAll('.clickable-url').forEach(el => {
+                        el.classList.remove('clickable-url');
+                        el.removeEventListener('click', openUrlInNewWindow, true);
+                        el.removeEventListener('mousedown', openUrlInNewWindow, true);
+                        el.onclick = null;
+                        el.removeAttribute('data-url');
+                        el.removeAttribute('title');
+                    });
+                    document.querySelectorAll('.url-field').forEach(el => {
+                        el.classList.remove('url-field');
+                    });
+
+                    // 处理重要字段高亮
+                    importantFields.forEach(fieldName => {
+                        const fieldElements = document.querySelectorAll('.jsoneditor-field');
+                        fieldElements.forEach(element => {
+                            if (element.textContent && element.textContent.trim() === fieldName) {
+                                element.classList.add('important-field');
+
+                                const parent = element.closest('.jsoneditor-property');
+                                if (parent) {
+                                    const valueElement = parent.querySelector('.jsoneditor-value');
+                                    if (valueElement) {
+                                        valueElement.classList.add('important-value');
+                                    }
+                                }
+
+                                console.log(`已高亮重要字段: ${fieldName}`);
+                            }
+                        });
+                    });
+
+                    // 处理URL字段为可点击
+                    console.log('开始处理URL字段:', urlFields);
+                    urlFields.forEach(fieldName => {
+                        console.log(`查找字段: ${fieldName}`);
+                        const fieldElements = document.querySelectorAll('.jsoneditor-field');
+                        let foundField = false;
+
+                        fieldElements.forEach(element => {
+                            const elementText = element.textContent ? element.textContent.trim() : '';
+                            if (elementText === fieldName) {
+                                foundField = true;
+                                console.log(`找到URL字段: ${fieldName}`);
+                                element.classList.add('url-field');
+
+                                const parent = element.closest('.jsoneditor-property');
+                                if (parent) {
+                                    const valueElement = parent.querySelector('.jsoneditor-value');
+                                    if (valueElement) {
+                                        const urlText = valueElement.textContent.trim().replace(/"/g, '');
+                                        console.log(`URL字段值: ${urlText}`);
+
+                                        // 检查是否是有效URL
+                                        if (urlText && (urlText.startsWith('http://') || urlText.startsWith('https://'))) {
+                                            console.log(`设置可点击URL: ${urlText}`);
+                                            valueElement.classList.add('clickable-url');
+                                            valueElement.setAttribute('data-url', urlText);
+                                            valueElement.setAttribute('title', `点击在新窗口中打开: ${urlText}`);
+                                            valueElement.style.cursor = 'pointer';
+
+                                            // 移除可能存在的其他事件监听器
+                                            valueElement.removeEventListener('click', openUrlInNewWindow, true);
+                                            valueElement.removeEventListener('mousedown', openUrlInNewWindow, true);
+
+                                            // 使用最简单直接的点击处理
+                                            valueElement.onclick = function(e) {
+                                                console.log('URL点击事件被触发!', urlText);
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                e.stopImmediatePropagation();
+                                                window.open(urlText, '_blank', 'noopener,noreferrer');
+                                                console.log(`成功打开URL: ${urlText}`);
+                                                return false;
+                                            };
+
+                                            // 添加更强的事件监听器
+                                            valueElement.addEventListener('click', function(e) {
+                                                console.log('addEventListener点击事件被触发!', urlText);
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                e.stopImmediatePropagation();
+                                                window.open(urlText, '_blank', 'noopener,noreferrer');
+                                                console.log(`addEventListener打开URL: ${urlText}`);
+                                                return false;
+                                            }, true);
+
+                                            // 添加鼠标down事件作为备选
+                                            valueElement.addEventListener('mousedown', function(e) {
+                                                if (e.button === 0) { // 左键点击
+                                                    console.log('mousedown事件被触发!', urlText);
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    e.stopImmediatePropagation();
+                                                    window.open(urlText, '_blank', 'noopener,noreferrer');
+                                                    console.log(`mousedown打开URL: ${urlText}`);
+                                                    return false;
+                                                }
+                                            }, true);
+
+                                            // 添加右键菜单事件
+                                            valueElement.addEventListener('contextmenu', function(e) {
+                                                console.log('右键菜单事件被触发!', urlText);
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                showContextMenu(e.pageX, e.pageY, urlText);
+                                                return false;
+                                            });
+
+                                            // 阻止默认右键菜单，确保显示自定义菜单
+                                            valueElement.oncontextmenu = function(e) {
+                                                console.log('oncontextmenu被触发!', urlText);
+                                                e.preventDefault();
+                                                showContextMenu(e.pageX, e.pageY, urlText);
+                                                return false;
+                                            };
+
+                                            console.log(`✅ 已设置可点击URL字段: ${fieldName} -> ${urlText}`);
+                                        } else {
+                                            console.log(`❌ URL不符合格式: ${urlText}`);
+                                        }
+                                    } else {
+                                        console.log(`❌ 未找到valueElement`);
+                                    }
+                                } else {
+                                    console.log(`❌ 未找到parent property`);
+                                }
+                            }
+                        });
+
+                        if (!foundField) {
+                            console.log(`❌ 未找到字段: ${fieldName}`);
+                        }
+                    });
+                }, 250);
+            }
+
+            // 在新窗口中打开URL
+            function openUrlInNewWindow(event) {
+                console.log('URL点击事件触发:', event.type, event.target);
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                const url = event.target.getAttribute('data-url');
+                console.log('提取到URL:', url);
+
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                    console.log(`在新窗口中打开URL: ${url}`);
+                } else {
+                    console.log('未找到URL数据');
+                }
+                return false;
+            }
+
+            // 设置全局点击事件委托作为备选方案
+            function setupGlobalUrlClickDelegation() {
+                console.log('设置全局URL点击委托...');
+
+                // 超强全局委托 - 捕获所有点击事件
+                document.addEventListener('click', function(event) {
+                    console.log('全局点击事件:', event.target, event.target.className);
+
+                    // 检查是否点击了URL元素或其子元素
+                    let target = event.target;
+                    let urlElement = null;
+                    let maxDepth = 5; // 最多向上查找5层
+
+                    while (target && maxDepth > 0) {
+                        if (target.classList && target.classList.contains('clickable-url')) {
+                            urlElement = target;
+                            break;
+                        }
+                        // 检查是否包含URL数据
+                        if (target.getAttribute && target.getAttribute('data-url')) {
+                            urlElement = target;
+                            break;
+                        }
+                        target = target.parentElement;
+                        maxDepth--;
+                    }
+
+                    if (urlElement) {
+                        console.log('全局委托发现URL点击:', urlElement);
+                        const url = urlElement.getAttribute('data-url');
+                        if (url) {
+                            console.log('全局委托打开URL:', url);
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.stopImmediatePropagation();
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                            return false;
+                        }
+                    }
+                }, true);
+
+                // 额外的mousedown委托
+                document.addEventListener('mousedown', function(event) {
+                    if (event.button === 0) { // 左键
+                        let target = event.target;
+                        let maxDepth = 5;
+
+                        while (target && maxDepth > 0) {
+                            if (target.classList && target.classList.contains('clickable-url')) {
+                                const url = target.getAttribute('data-url');
+                                if (url) {
+                                    console.log('全局mousedown委托打开URL:', url);
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    event.stopImmediatePropagation();
+                                    window.open(url, '_blank', 'noopener,noreferrer');
+                                    return false;
+                                }
+                                break;
+                            }
+                            target = target.parentElement;
+                            maxDepth--;
+                        }
+                    }
+                }, true);
+
+                // 全局右键菜单委托
+                document.addEventListener('contextmenu', function(event) {
+                    console.log('全局右键事件:', event.target);
+
+                    let target = event.target;
+                    let urlElement = null;
+                    let maxDepth = 5;
+
+                    while (target && maxDepth > 0) {
+                        if (target.classList && target.classList.contains('clickable-url')) {
+                            urlElement = target;
+                            break;
+                        }
+                        if (target.getAttribute && target.getAttribute('data-url')) {
+                            urlElement = target;
+                            break;
+                        }
+                        target = target.parentElement;
+                        maxDepth--;
+                    }
+
+                    if (urlElement) {
+                        const url = urlElement.getAttribute('data-url');
+                        if (url) {
+                            console.log('全局右键委托显示菜单:', url);
+                            event.preventDefault();
+                            event.stopPropagation();
+                            showContextMenu(event.pageX, event.pageY, url);
+                            return false;
+                        }
+                    }
+                }, true);
+
+                // 针对JSON编辑器的特殊委托
+                function setupJsonEditorDelegation(editorContainer, editorName) {
+                    if (!editorContainer) {
+                        console.log(`${editorName}编辑器容器未找到`);
+                        return;
+                    }
+
+                    console.log(`为${editorName}编辑器设置特殊委托`);
+
+                    editorContainer.addEventListener('click', function(event) {
+                        console.log(`${editorName}编辑器点击:`, event.target);
+
+                        // 查找URL元素
+                        let target = event.target;
+                        let maxDepth = 10;
+
+                        while (target && maxDepth > 0) {
+                            if (target.classList && target.classList.contains('clickable-url')) {
+                                const url = target.getAttribute('data-url');
+                                if (url) {
+                                    console.log(`${editorName}编辑器委托打开URL:`, url);
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    event.stopImmediatePropagation();
+                                    window.open(url, '_blank', 'noopener,noreferrer');
+                                    return false;
+                                }
+                                break;
+                            }
+                            target = target.parentElement;
+                            maxDepth--;
+                        }
+                    }, true);
+                }
+
+                // 为两个JSON编辑器设置委托
+                setTimeout(() => {
+                    setupJsonEditorDelegation(document.getElementById('response-editor'), 'Response');
+                    setupJsonEditorDelegation(document.getElementById('expect-editor'), 'Expect');
+                }, 500);
+
+                console.log('全局URL点击委托设置完成');
+            }
+
+            // 不再过滤JSON数据，保持原始数据完整性
+            function filterImageData(data) {
+                // 直接返回原始数据，不进行任何过滤
+                return data;
+            }
+
+            // 启动应用
+            initializeApp();
 
             // 加载请求列表
             function loadRequests() {
@@ -296,12 +2772,26 @@
                         requestsList.innerHTML = '';
                         if (data.length === 0) {
                             requestsList.innerHTML = '<p>No requests found</p>';
+                            allRequests = [];
                             return;
                         }
                         // 前端再次确认排序
                         data.sort((a, b) => a.number - b.number);
-                        data.forEach(req => {
-                            addRequestToList(req.id, req.name, req.number, req.has_html, req.html_count);
+                        allRequests = data;
+
+                        data.forEach((req, index) => {
+                            addRequestToList(req.id, req.name, req.number, req.has_html, req.html_count, req.has_modifications);
+
+                            // 根据has_expectation_file字段设置已标注状态
+                            if (req.has_expectation_file) {
+                                taggedRequests.add(req.id);
+                                updateRequestItemStatus(req.id, true);
+                                console.log(`邮件 ${req.id} (${req.name}) 存在expectation文件，标记为已标注`);
+                            } else {
+                                taggedRequests.delete(req.id);
+                                updateRequestItemStatus(req.id, false);
+                                console.log(`邮件 ${req.id} (${req.name}) 不存在expectation文件，标记为未标注`);
+                            }
                         });
                     })
                     .catch(error => {
@@ -311,171 +2801,64 @@
             }
 
             // 添加请求到列表
-            function addRequestToList(requestId, requestName, requestNumber, hasHtml, htmlCount) {
-                console.log(`Adding request ${requestId}: ${requestName}, number: ${requestNumber}`);
+            function addRequestToList(requestId, requestName, requestNumber, hasHtml, htmlCount, hasModifications = false) {
+                console.log(`Adding request ${requestId}: ${requestName}, number: ${requestNumber}, hasModifications: ${hasModifications}`);
 
                 const requestItem = document.createElement('div');
                 requestItem.className = 'request-item';
 
                 const itemContent = document.createElement('div');
+                itemContent.className = 'request-item-content';
                 itemContent.innerHTML = `
                     <span class="request-number">${typeof requestNumber === 'number' ? requestNumber : '#'}</span>
                     <span class="request-name">${requestName}</span>
-                    ${hasHtml ? `<span class="html-count">${htmlCount} files</span>` : ''}
-                    <span class="html-toggle">${hasHtml ? '▼ Show HTML' : '▼ No HTML'}</span>
+                    ${hasHtml ? `<span class="html-count">${htmlCount} HTML文件</span>` : ''}
                 `;
 
                 requestItem.appendChild(itemContent);
+
+                // 如果有修改，添加"有修改"按钮
+                if (hasModifications) {
+                    const modificationBtn = document.createElement('button');
+                    modificationBtn.className = 'modification-btn';
+                    modificationBtn.innerHTML = '🔍 有修改';
+                    modificationBtn.title = '点击查看修改内容的差异对比';
+
+                    // 阻止事件冒泡，避免触发行点击
+                    modificationBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        showModificationDiff(requestId);
+                    });
+
+                    requestItem.appendChild(modificationBtn);
+                }
+
                 requestItem.dataset.id = requestId;
 
-                // 添加HTML文件列表区域
-                const htmlFilesContainer = document.createElement('div');
-                htmlFilesContainer.className = 'html-files-container';
-                requestItem.appendChild(htmlFilesContainer);
+                // 点击邮件项直接加载数据并显示HTML弹出层
+                requestItem.addEventListener('click', function (e) {
+                    // 设置高亮
+                    document.querySelectorAll('.request-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    this.classList.add('active');
 
-                // 切换HTML文件列表显示/隐藏
-                const toggleBtn = requestItem.querySelector('.html-toggle');
-                toggleBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    const container = requestItem.querySelector('.html-files-container');
+                    // 加载请求数据
+                    loadRequestDetails(requestId);
 
-                    if (container.style.display === 'block') {
-                        container.style.display = 'none';
-                        toggleBtn.textContent = hasHtml ? '▼ Show HTML' : '▼ No HTML';
-                    } else {
-                        container.style.display = 'block';
-                        toggleBtn.textContent = '▲ Hide';
-                        container.innerHTML = '<p>Loading HTML files...</p>';
-
-                        // 加载HTML文件列表
-                        fetch(`/api/html_files/${requestId}`)
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('Failed to load HTML files');
-                                }
-                                return response.json();
-                            })
-                            .then(data => {
-                                console.log(`HTML files for request ${requestId}:`, data);
-                                container.innerHTML = `
-                                    <p class="debug-info">Looking for: ${data.base_name}.html</p>
-                                `;
-
-                                if (data.html_files && data.html_files.length > 0) {
-                                    const fileList = document.createElement('div');
-                                    data.html_files.forEach(file => {
-                                        const link = document.createElement('div');
-                                        link.className = 'html-file-link';
-                                        link.textContent = file;
-                                        link.addEventListener('click', function(e) {
-                                            e.stopPropagation();
-                                            loadAndShowHtmlContent(requestId, file);
-                                        });
-                                        fileList.appendChild(link);
-                                    });
-                                    container.appendChild(fileList);
-                                } else {
-                                    container.innerHTML += '<p>No matching HTML files found</p>';
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error loading HTML files:', error);
-                                container.innerHTML = `Error loading HTML files: ${error.message}`;
-                            });
-                    }
-                });
-
-                // 点击加载请求详情
-                requestItem.addEventListener('click', function(e) {
-                    if (!e.target.classList.contains('html-toggle') && !e.target.classList.contains('html-file-link')) {
-                        // 设置高亮
-                        document.querySelectorAll('.request-item').forEach(item => {
-                            item.classList.remove('active');
-                        });
-                        this.classList.add('active');
-
-                        // 加载请求数据
-                        currentRequestId = requestId;
-                        fetch(`/api/request/${requestId}`)
-                            .then(response => response.json())
-                            .then(data => {
-                                currentResponse = data.response.data;
-
-                                // 显示请求数据
-                                responseContent.textContent = JSON.stringify(data.response, null, 2);
-                                expectContent.textContent = JSON.stringify(data.expect.data, null, 2);
-
-                                // 更新状态显示
-                                if (data.response.status >= 200 && data.response.status < 300) {
-                                    responseStatus.className = 'status-success';
-                                    responseStatus.textContent = `Status: ${data.response.status} Success`;
-                                } else {
-                                    responseStatus.className = 'status-error';
-                                    responseStatus.textContent = `Status: ${data.response.status} Error`;
-                                }
-                            });
+                    // 如果有HTML文件，自动显示弹出层
+                    if (hasHtml) {
+                        openHtmlModal(requestId, requestName);
                     }
                 });
 
                 requestsList.appendChild(requestItem);
             }
 
-            // 加载并显示HTML内容
-            function loadAndShowHtmlContent(requestId, fileName) {
-                // 检查是否已有相同的HTML内容容器，有的话先移除
-                const existingContainer = document.querySelector(`.html-content-container[data-request-id="${requestId}"][data-file-name="${fileName}"]`);
-                if (existingContainer) {
-                    existingContainer.remove();
-                    return;
-                }
 
-                // 创建HTML内容容器
-                const htmlContainer = document.createElement('div');
-                htmlContainer.className = 'html-content-container';
-                htmlContainer.dataset.requestId = requestId;
-                htmlContainer.dataset.fileName = fileName;
-
-                // 添加标题栏
-                const header = document.createElement('div');
-                header.className = 'html-content-header';
-                header.innerHTML = `
-                    <span>HTML Content: ${fileName}</span>
-                    <span class="html-content-close">×</span>
-                `;
-                htmlContainer.appendChild(header);
-
-                // 添加内容区域
-                const contentArea = document.createElement('div');
-                contentArea.className = 'html-content';
-                contentArea.innerHTML = '<p>Loading HTML content...</p>';
-                htmlContainer.appendChild(contentArea);
-
-                // 添加到请求项下方
-                const requestItem = document.querySelector(`.request-item[data-id="${requestId}"]`);
-                requestItem.parentNode.insertBefore(htmlContainer, requestItem.nextSibling);
-
-                // 关闭按钮事件
-                header.querySelector('.html-content-close').addEventListener('click', function() {
-                    htmlContainer.remove();
-                });
-
-                // 加载HTML内容
-                fetch(`/api/html_body_file/${requestId}?file=${encodeURIComponent(fileName)}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to load HTML content');
-                        }
-                        return response.text();
-                    })
-                    .then(html => {
-                        contentArea.innerHTML = html;
-                    })
-                    .catch(error => {
-                        console.error('Error loading HTML content:', error);
-                        contentArea.innerHTML = `<p class="status-error">Error loading HTML: ${error.message}</p>`;
-                    });
-            }
         });
     </script>
 </body>
+
 </html>
