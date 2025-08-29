@@ -96,7 +96,7 @@ def upload_all_json_to_s3(local_dir, bucket_name, s3_base_path="", max_workers=5
 
 if __name__ == "__main__":
     # 配置参数
-    sheet = input("which sheet do you want to upload: 1、request_order 2、request_ship 3、request_all 4、html_body_order 5、html_body_ship 6、html_body_all 7、response_order 8、response_ship 9、response_all: ")
+    sheet = input("1、request_order 2、request_ship 3、request_all 4、html_body_order 5、html_body_ship 6、html_body_all 7、response_order 8、response_ship 9、response_all: ")
     if sheet == "1":
         print(1)
         local_json_dir = "/Users/alex/AI邮件解析/request_order"  # 本地JSON文件目录
