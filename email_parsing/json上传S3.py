@@ -96,49 +96,34 @@ def upload_all_json_to_s3(local_dir, bucket_name, s3_base_path="", max_workers=5
 
 if __name__ == "__main__":
     # 配置参数
-    sheet = input("1、request_order 2、request_ship 3、request_all 4、html_body_order 5、html_body_ship 6、html_body_all 7、response_order 8、response_ship 9、response_all: ")
+    sheet = input("1、request_track 2、request_all 3、html_body_track 4、html_body_all 5、response_track 6、response_all: ")
     if sheet == "1":
         print(1)
-        local_json_dir = "/Users/alex/AI邮件解析/request_order"  # 本地JSON文件目录
+        local_json_dir = "/Users/alex/AI邮件解析/request_track"  # 本地JSON文件目录
         bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "request/order"  # S3基础路径，所有文件会传到这个路径下
+        s3_base_path = "request/track"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
     elif sheet == "2":
-        local_json_dir = "/Users/alex/AI邮件解析/request_ship"  # 本地JSON文件目录
-        bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "request/ship"  # S3基础路径，所有文件会传到这个路径下
-        upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "3":
         local_json_dir = "/Users/alex/AI邮件解析/request_all"  # 本地JSON文件目录
         bucket = "seel-email-parsing"  # S3存储桶名称
         s3_base_path = "request/all"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
+    elif sheet == "3":
+        local_json_dir = "/Users/alex/AI邮件解析/html_body_track/"  # 本地JSON文件目录
+        bucket = "seel-email-parsing"  # S3存储桶名称
+        s3_base_path = "html_body/track"  # S3基础路径，所有文件会传到这个路径下
+        upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
     elif sheet == "4":
-        local_json_dir = "/Users/alex/AI邮件解析/html_body_order/"  # 本地JSON文件目录
-        bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "html_body/order"  # S3基础路径，所有文件会传到这个路径下
-        upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "5":
-        local_json_dir = "/Users/alex/AI邮件解析/html_body_ship"  # 本地JSON文件目录
-        bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "html_body/ship"  # S3基础路径，所有文件会传到这个路径下
-        upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "6":
         local_json_dir = "/Users/alex/AI邮件解析/html_body_all"  # 本地JSON文件目录
         bucket = "seel-email-parsing"  # S3存储桶名称
         s3_base_path = "html_body/all"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "7":
-        local_json_dir = "/Users/alex/AI邮件解析/response_order"  # 本地JSON文件目录
+    elif sheet == "5":
+        local_json_dir = "/Users/alex/AI邮件解析/response_track"  # 本地JSON文件目录
         bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "response/order"  # S3基础路径，所有文件会传到这个路径下
+        s3_base_path = "response/track"  # S3基础路径，所有文件会传到这个路径下
         upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "8":
-        local_json_dir = "/Users/alex/AI邮件解析/response_ship"  # 本地JSON文件目录
-        bucket = "seel-email-parsing"  # S3存储桶名称
-        s3_base_path = "response/ship"  # S3基础路径，所有文件会传到这个路径下
-        upload_all_json_to_s3(local_json_dir, bucket, s3_base_path)
-    elif sheet == "9":
+    elif sheet == "6":
         local_json_dir = "/Users/alex/AI邮件解析/response_all"  # 本地JSON文件目录
         bucket = "seel-email-parsing"  # S3存储桶名称
         s3_base_path = "response/all"  # S3基础路径，所有文件会传到这个路径下

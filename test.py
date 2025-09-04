@@ -1,42 +1,43 @@
-import requests
+import base64
+import hashlib
+from Crypto.Cipher import AES
 
+secret_key = 'seel-fetch-email-secret'
 
-def test_post_api():
-    # 接口地址（请替换为实际的接口URL）
-    url = "http://order-email-parser:8080/parse-email"  # 根据实际情况修改，可能需要添加端口或修改协议
-
-    # 请求体数据
-    payload = {
-        "subject": "Order #1095 confirmed",
-        "sender": "store+73212199206@t.shopifyemail.com",
-        "content": ""
-    }
-
+def process_key(key: str) -> bytes:
+    # 直接处理为256位密钥（32字节）
+    return hashlib.sha256(key.encode('utf-8')).digest()
+def decode_base64(base64_data: str) -> bytes:
+    """
+    Decode URL-safe base64 string to bytes, handling padding.
+    """
+    base64_str = base64_data.replace('-', '+').replace('_', '/')
+    padding = len(base64_str) % 4
+    if padding == 2:
+        base64_str += "=="
+    elif padding == 3:
+        base64_str += "="
+    return base64.b64decode(base64_str)
+def symmetric_decrypt_with_base64_decode(key: str, encrypted_value: str) -> str:
+    """
+    解密并Base64解码
+    :param key: 加密密钥
+    :param encrypted_value: 十六进制的AES加密字符串
+    :return: 解密后的明文字符串
+    """
     try:
-        # 发送 POST 请求，设置超时时间为10秒
-        response = requests.post(url, json=payload, timeout=10)
-
-        # 打印响应状态码
-        print(f"状态码: {response.status_code}")
-
-        # 打印响应内容
-        print("响应内容:")
-        try:
-            # 尝试以 JSON 格式解析响应
-            print(response.json())
-        except:
-            # 如果不是 JSON 格式，直接打印文本
-            print(response.text)
-
-    except requests.exceptions.RequestException as e:
-        # 捕获所有请求相关的异常
-        print(f"请求发生错误: {e}")
-        # 特别处理 DNS 解析错误
-        if "getaddrinfo" in str(e):
-            print("提示: 域名无法解析，请检查域名正确性、网络连接或是否需要指定端口")
-        elif "Connection refused" in str(e):
-            print("提示: 连接被拒绝，可能是端口错误或服务未启动")
-
-
-if __name__ == "__main__":
-    test_post_api()
+        key_bytes = process_key(key)
+        cipher = AES.new(key_bytes, AES.MODE_ECB)
+        # 先将hex字符串转为字节
+        encrypted_bytes = bytes.fromhex(encrypted_value)
+        decrypted = cipher.decrypt(encrypted_bytes)
+        # 去除PKCS7填充
+        pad_len = decrypted[-1]
+        decrypted = decrypted[:-pad_len]
+        # base64解码得到原始内容
+        decoded = decode_base64(decrypted.decode('utf-8'))
+        return decoded.decode('utf-8')
+    except Exception as e:
+        # 这里可以用logging模块替换
+        print(f"Error during symmetric decryption: {e}")
+        return None

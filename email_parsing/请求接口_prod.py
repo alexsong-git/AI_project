@@ -6,16 +6,65 @@ import sys
 import os
 from botocore.config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import base64
+import hashlib
+from Crypto.Cipher import AES
 
 # 创建 S3 客户端
 s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
-bucket = 'ecms-user-email-message-dev'
+bucket = 'ecms-user-email-message'
 # HTML文件存储根目录
 HTML_ROOT_DIR = '/Users/alex/AI邮件解析'
 # 主线程池最大工作线程数
 MAX_WORKERS = 10  # 可根据实际情况调整
 # HTML下载专用线程池大小
 HTML_DOWNLOAD_WORKERS = 10  # 可根据网络情况调整
+
+# 添加解密相关的常量和函数
+SECRET_KEY = 'seel-fetch-email-secret'
+
+
+def process_key(key: str) -> bytes:
+    # 直接处理为256位密钥（32字节）
+    return hashlib.sha256(key.encode('utf-8')).digest()
+
+
+def decode_base64(base64_data: str) -> bytes:
+    """
+    Decode URL-safe base64 string to bytes, handling padding.
+    """
+    base64_str = base64_data.replace('-', '+').replace('_', '/')
+    padding = len(base64_str) % 4
+    if padding == 2:
+        base64_str += "=="
+    elif padding == 3:
+        base64_str += "="
+    return base64.b64decode(base64_str)
+
+
+def symmetric_decrypt_with_base64_decode(key: str, encrypted_value: str) -> str:
+    """
+    解密并Base64解码
+    :param key: 加密密钥
+    :param encrypted_value: 十六进制的AES加密字符串
+    :return: 解密后的明文字符串
+    """
+    try:
+        key_bytes = process_key(key)
+        cipher = AES.new(key_bytes, AES.MODE_ECB)
+        # 先将hex字符串转为字节
+        encrypted_bytes = bytes.fromhex(encrypted_value)
+        decrypted = cipher.decrypt(encrypted_bytes)
+        # 去除PKCS7填充
+        pad_len = decrypted[-1]
+        decrypted = decrypted[:-pad_len]
+        # base64解码得到原始内容
+        decoded = decode_base64(decrypted.decode('utf-8'))
+        return decoded.decode('utf-8')
+    except Exception as e:
+        # 这里可以用logging模块替换
+        print(f"Error during symmetric decryption: {e}")
+        return None
 
 
 def process_email_requests(excel_file_path, sheet_name):
@@ -24,7 +73,7 @@ def process_email_requests(excel_file_path, sheet_name):
     html_dir = os.path.join(HTML_ROOT_DIR, f'html_body_{sheet_name.strip().lower()}')
     os.makedirs(html_dir, exist_ok=True)
 
-    #url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
+    # url = 'https://internal-api-dev.seel.com/order-email-parser/parse-email'
     url = 'http://order-email-parser:8080/parse-email'
     wb = load_workbook(excel_file_path)
 
@@ -78,7 +127,8 @@ def process_email_requests(excel_file_path, sheet_name):
     # 使用主线程池处理所有行
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         # 提交所有任务
-        futures = {executor.submit(process_single_row, *row_data, html_executor, html_futures): row_data for row_data in rows_to_process}
+        futures = {executor.submit(process_single_row, *row_data, html_executor, html_futures): row_data for row_data in
+                   rows_to_process}
 
         # 等待所有任务完成
         for future in as_completed(futures):
@@ -108,7 +158,8 @@ def process_email_requests(excel_file_path, sheet_name):
 
 
 def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_col, subject_col, sender_col,
-                       request_col, response_col, json_dir, response_dir, data_type, html_dir, html_executor, html_futures):
+                       request_col, response_col, json_dir, response_dir, data_type, html_dir, html_executor,
+                       html_futures):
     """处理单行请求（供多线程调用）"""
     try:
         html_path = sheet.cell(row=row_num, column=html_col).value
@@ -214,10 +265,25 @@ def download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir):
 
         # 下载S3文件到本地
         s3_client.download_file(bucket, s3_key, local_path)
-        print(f"已下载HTML文件到: {local_path}")
+
+        # 读取下载的文件内容并尝试解密
+        with open(local_path, 'r', encoding='utf-8') as f:
+            encrypted_content = f.read()
+
+        # 尝试解密内容
+        decrypted_content = symmetric_decrypt_with_base64_decode(SECRET_KEY, encrypted_content)
+
+        if decrypted_content:
+            # 将解密后的内容写回文件
+            with open(local_path, 'w', encoding='utf-8') as f:
+                f.write(decrypted_content)
+            print(f"已下载并解密HTML文件到: {local_path}")
+        else:
+            print(f"解密失败，保留原始加密内容: {local_path}")
+
         return local_path
     except Exception as e:
-        print(f"下载HTML文件失败 (S3 key: {s3_key}): {str(e)}")
+        print(f"下载或解密HTML文件失败 (S3 key: {s3_key}): {str(e)}")
         return None
 
 
@@ -231,7 +297,15 @@ def build_request_body(s3_client, html_path, subject, sender):
 
     if html_path:
         response_s3 = s3_client.get_object(Bucket=bucket, Key=html_path)
-        request_body["content"] = response_s3['Body'].read().decode('utf-8')
+        encrypted_content = response_s3['Body'].read().decode('utf-8')
+
+        # 尝试解密内容
+        decrypted_content = symmetric_decrypt_with_base64_decode(SECRET_KEY, encrypted_content)
+
+        if decrypted_content:
+            request_body["content"] = decrypted_content
+        else:
+            request_body["content"] = encrypted_content  # 如果解密失败，使用原始内容
 
     return request_body
 

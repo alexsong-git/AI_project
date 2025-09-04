@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 创建 S3 客户端
 s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
-bucket = 'ecms-user-email-message-dev'
+bucket = 'ecms-user-email-message'
 # HTML文件存储根目录
 HTML_ROOT_DIR = '/Users/alex/AI邮件解析'
 # 主线程池最大工作线程数
@@ -59,9 +59,12 @@ def process_email_requests(excel_file_path, sheet_name):
     if len(data_type) > 15:
         data_type = data_type[:15]
 
-    # 收集所有需要处理的行数据
+    # 收集所有需要处理的行数据（跳过隐藏行）
     rows_to_process = []
     for row_num in range(2, sheet.max_row + 1):
+        # 检查行是否隐藏（openpyxl中row_dimensions的hidden属性）
+        if sheet.row_dimensions[row_num].hidden:
+            continue
         rows_to_process.append((
             row_num, sheet, s3, url, html_path_col_index, html_url_col_index,
             subject_col_index, sender_col_index, request_col_index,
@@ -182,7 +185,7 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
             # 清空原有可能存在的url
             sheet.cell(row=row_num, column=html_url_col).value = ""
     except Exception as e:
-        sheet.cell(row=row_num, column=html_url_col, value='处理HTML链接失败')
+        sheet.cell(row=row_num, column=html_url_col).value = '处理HTML链接失败'
         print(f'处理行 {row_num} HTML链接失败: {str(e)}')
 
 
@@ -196,9 +199,9 @@ def handle_html_download(s3_client, s3_key, row_num, data_type, html_dir, sheet,
             sheet.cell(row=row_num, column=html_url_col).value = f"本地HTML ({row_num}_{data_type})"
             sheet.cell(row=row_num, column=html_url_col).style = "Hyperlink"
         else:
-            sheet.cell(row=row_num, column=html_url_col, value='HTML下载失败')
+            sheet.cell(row=row_num, column=html_url_col).value = 'HTML下载失败'
     except Exception as e:
-        sheet.cell(row=row_num, column=html_url_col, value='HTML下载异常')
+        sheet.cell(row=row_num, column=html_url_col).value = 'HTML下载异常'
         print(f'行 {row_num} HTML下载异常: {str(e)}')
 
 
