@@ -55,7 +55,7 @@ queries = {
     "all": """
     SELECT "html_body", "subject", "sender" 
     FROM "EmailMessage" 
-    WHERE "email" IN ('mstar@seel.com')
+    WHERE 1=1
     AND ("business_type" != 'RETURN' OR "business_type" IS NULL)
     AND "datetime" > '2025-08-20 00:00:00+00'
     ORDER BY "email", "created_ts" DESC;

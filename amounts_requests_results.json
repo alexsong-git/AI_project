@@ -1,0 +1,47 @@
+[
+  {
+    "index": 3,
+    "amount": 40,
+    "status": "success",
+    "status_code": 200,
+    "start_time": "13:25:07.933",
+    "response_time": 0.9866151809692383,
+    "response_text": "{\"code\":100000,\"message\":\"duplicate requests\"}"
+  },
+  {
+    "index": 2,
+    "amount": 30,
+    "status": "success",
+    "status_code": 200,
+    "start_time": "13:25:07.933",
+    "response_time": 0.9889099597930908,
+    "response_text": "{\"code\":100000,\"message\":\"Insufficient funds\"}"
+  },
+  {
+    "index": 1,
+    "amount": 20,
+    "status": "success",
+    "status_code": 200,
+    "start_time": "13:25:07.933",
+    "response_time": 0.9890029430389404,
+    "response_text": "{\"code\":100000,\"message\":\"duplicate requests\"}"
+  },
+  {
+    "index": 4,
+    "amount": 50,
+    "status": "success",
+    "status_code": 200,
+    "start_time": "13:25:07.934",
+    "response_time": 0.9879367351531982,
+    "response_text": "{\"code\":100000,\"message\":\"duplicate requests\"}"
+  },
+  {
+    "index": 0,
+    "amount": 10,
+    "status": "success",
+    "status_code": 200,
+    "start_time": "13:25:07.933",
+    "response_time": 0.9906697273254395,
+    "response_text": "{\"code\":100000,\"message\":\"duplicate requests\"}"
+  }
+]

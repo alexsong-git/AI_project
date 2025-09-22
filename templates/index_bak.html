@@ -2434,155 +2434,61 @@
             function highlightImportantFields() {
                 console.log('开始高亮重要字段和设置URL点击');
 
-                // 重要字段列表
                 const importantFields = ['shop_domain', 'admin_domain', 'order_number'];
-                // URL字段列表
                 const urlFields = ['image_url', 'product_url'];
 
-                // 延迟执行，确保JSON编辑器已经渲染完成
                 setTimeout(() => {
-                    console.log('开始处理字段高亮，当前DOM中的jsoneditor-field数量:', document.querySelectorAll('.jsoneditor-field').length);
-
-                    // 清除之前的样式
-                    document.querySelectorAll('.important-field').forEach(el => {
-                        el.classList.remove('important-field');
-                    });
-                    document.querySelectorAll('.important-value').forEach(el => {
-                        el.classList.remove('important-value');
-                    });
+                    // 清除之前的样式（保留原有逻辑）
+                    document.querySelectorAll('.important-field').forEach(el => el.classList.remove('important-field'));
+                    document.querySelectorAll('.important-value').forEach(el => el.classList.remove('important-value'));
                     document.querySelectorAll('.clickable-url').forEach(el => {
                         el.classList.remove('clickable-url');
-                        el.removeEventListener('click', openUrlInNewWindow, true);
-                        el.removeEventListener('mousedown', openUrlInNewWindow, true);
-                        el.onclick = null;
                         el.removeAttribute('data-url');
                         el.removeAttribute('title');
                     });
-                    document.querySelectorAll('.url-field').forEach(el => {
-                        el.classList.remove('url-field');
-                    });
+                    document.querySelectorAll('.url-field').forEach(el => el.classList.remove('url-field'));
 
-                    // 处理重要字段高亮
+                    // 重要字段高亮（保留原有逻辑）
                     importantFields.forEach(fieldName => {
-                        const fieldElements = document.querySelectorAll('.jsoneditor-field');
-                        fieldElements.forEach(element => {
-                            if (element.textContent && element.textContent.trim() === fieldName) {
+                        document.querySelectorAll('.jsoneditor-field').forEach(element => {
+                            if (element.textContent?.trim() === fieldName) {
                                 element.classList.add('important-field');
-
                                 const parent = element.closest('.jsoneditor-property');
                                 if (parent) {
                                     const valueElement = parent.querySelector('.jsoneditor-value');
-                                    if (valueElement) {
-                                        valueElement.classList.add('important-value');
-                                    }
+                                    if (valueElement) valueElement.classList.add('important-value');
                                 }
-
-                                console.log(`已高亮重要字段: ${fieldName}`);
                             }
                         });
                     });
 
-                    // 处理URL字段为可点击
-                    console.log('开始处理URL字段:', urlFields);
+                    // URL字段处理（核心修改部分）
                     urlFields.forEach(fieldName => {
-                        console.log(`查找字段: ${fieldName}`);
-                        const fieldElements = document.querySelectorAll('.jsoneditor-field');
-                        let foundField = false;
-
-                        fieldElements.forEach(element => {
-                            const elementText = element.textContent ? element.textContent.trim() : '';
-                            if (elementText === fieldName) {
-                                foundField = true;
-                                console.log(`找到URL字段: ${fieldName}`);
+                        document.querySelectorAll('.jsoneditor-field').forEach(element => {
+                            if (element.textContent?.trim() === fieldName) {
                                 element.classList.add('url-field');
-
                                 const parent = element.closest('.jsoneditor-property');
                                 if (parent) {
                                     const valueElement = parent.querySelector('.jsoneditor-value');
                                     if (valueElement) {
                                         const urlText = valueElement.textContent.trim().replace(/"/g, '');
-                                        console.log(`URL字段值: ${urlText}`);
-
-                                        // 检查是否是有效URL
                                         if (urlText && (urlText.startsWith('http://') || urlText.startsWith('https://'))) {
-                                            console.log(`设置可点击URL: ${urlText}`);
+                                            // 添加点击相关属性
                                             valueElement.classList.add('clickable-url');
                                             valueElement.setAttribute('data-url', urlText);
-                                            valueElement.setAttribute('title', `点击在新窗口中打开: ${urlText}`);
-                                            valueElement.style.cursor = 'pointer';
+                                            valueElement.setAttribute('title', '点击在新窗口打开');
 
-                                            // 移除可能存在的其他事件监听器
-                                            valueElement.removeEventListener('click', openUrlInNewWindow, true);
-                                            valueElement.removeEventListener('mousedown', openUrlInNewWindow, true);
-
-                                            // 使用最简单直接的点击处理
+                                            // 绑定点击事件（确保只绑定一次）
                                             valueElement.onclick = function(e) {
-                                                console.log('URL点击事件被触发!', urlText);
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                e.stopImmediatePropagation();
                                                 window.open(urlText, '_blank', 'noopener,noreferrer');
-                                                console.log(`成功打开URL: ${urlText}`);
-                                                return false;
                                             };
-
-                                            // 添加更强的事件监听器
-                                            valueElement.addEventListener('click', function(e) {
-                                                console.log('addEventListener点击事件被触发!', urlText);
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                e.stopImmediatePropagation();
-                                                window.open(urlText, '_blank', 'noopener,noreferrer');
-                                                console.log(`addEventListener打开URL: ${urlText}`);
-                                                return false;
-                                            }, true);
-
-                                            // 添加鼠标down事件作为备选
-                                            valueElement.addEventListener('mousedown', function(e) {
-                                                if (e.button === 0) { // 左键点击
-                                                    console.log('mousedown事件被触发!', urlText);
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    e.stopImmediatePropagation();
-                                                    window.open(urlText, '_blank', 'noopener,noreferrer');
-                                                    console.log(`mousedown打开URL: ${urlText}`);
-                                                    return false;
-                                                }
-                                            }, true);
-
-                                            // 添加右键菜单事件
-                                            valueElement.addEventListener('contextmenu', function(e) {
-                                                console.log('右键菜单事件被触发!', urlText);
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                showContextMenu(e.pageX, e.pageY, urlText);
-                                                return false;
-                                            });
-
-                                            // 阻止默认右键菜单，确保显示自定义菜单
-                                            valueElement.oncontextmenu = function(e) {
-                                                console.log('oncontextmenu被触发!', urlText);
-                                                e.preventDefault();
-                                                showContextMenu(e.pageX, e.pageY, urlText);
-                                                return false;
-                                            };
-
-                                            console.log(`✅ 已设置可点击URL字段: ${fieldName} -> ${urlText}`);
-                                        } else {
-                                            console.log(`❌ URL不符合格式: ${urlText}`);
                                         }
-                                    } else {
-                                        console.log(`❌ 未找到valueElement`);
                                     }
-                                } else {
-                                    console.log(`❌ 未找到parent property`);
                                 }
                             }
                         });
-
-                        if (!foundField) {
-                            console.log(`❌ 未找到字段: ${fieldName}`);
-                        }
                     });
                 }, 250);
             }
