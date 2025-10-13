@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import hashlib
 from Crypto.Cipher import AES
+from datetime import datetime  # 新增：导入datetime处理日期
 
 # 创建 S3 客户端
 s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
@@ -16,9 +17,9 @@ bucket = 'ecms-user-email-message'
 # HTML文件存储根目录
 HTML_ROOT_DIR = '/Users/alex/AI邮件解析'
 # 主线程池最大工作线程数
-MAX_WORKERS = 10  # 可根据实际情况调整
+MAX_WORKERS = 30  # 可根据实际情况调整
 # HTML下载专用线程池大小
-HTML_DOWNLOAD_WORKERS = 10  # 可根据网络情况调整
+HTML_DOWNLOAD_WORKERS = 30  # 可根据网络情况调整
 
 # 添加解密相关的常量和函数
 SECRET_KEY = 'seel-fetch-email-secret'
@@ -101,6 +102,7 @@ def process_email_requests(excel_file_path, sheet_name):
     html_url_col_index = 4  # 现在存储本地HTML文件超链接
     request_col_index = 5  # 请求列（存储JSON文件链接）
     response_col_index = 6  # 响应列
+    date_col_index = 9  # 收到邮件时间
 
     # 直接使用工作表名称作为数据类型
     data_type = sheet_name.strip().lower()
@@ -117,7 +119,8 @@ def process_email_requests(excel_file_path, sheet_name):
         rows_to_process.append((
             row_num, sheet, s3, url, html_path_col_index, html_url_col_index,
             subject_col_index, sender_col_index, request_col_index,
-            response_col_index, json_dir, response_dir, data_type, html_dir
+            response_col_index, json_dir, response_dir, data_type, html_dir,
+            date_col_index  # 传递日期列索引
         ))
 
     # 创建HTML下载专用线程池
@@ -158,21 +161,51 @@ def process_email_requests(excel_file_path, sheet_name):
 
 
 def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_col, subject_col, sender_col,
-                       request_col, response_col, json_dir, response_dir, data_type, html_dir, html_executor,
-                       html_futures):
+                       request_col, response_col, json_dir, response_dir, data_type, html_dir, date_col_index,
+                       html_executor, html_futures):
     """处理单行请求（供多线程调用）"""
     try:
+        # 获取日期列数据并处理（核心修改：仅保留年月日）
+        date_value = sheet.cell(row=row_num, column=date_col_index).value
+        date_str = "no_date"  # 默认值
+
+        if date_value is not None:
+            # 处理datetime对象
+            if isinstance(date_value, datetime):
+                # 直接格式化成年月日（不含时分秒）
+                date_str = date_value.strftime("%Y%m%d")
+            else:
+                # 处理字符串格式日期
+                date_str_raw = str(date_value).strip()
+                # 尝试从字符串中提取年月日（支持常见格式）
+                try:
+                    # 尝试解析包含时分秒的格式（如"2023-10-05 14:30:00"）
+                    date_obj = datetime.strptime(date_str_raw, "%Y-%m-%d %H:%M:%S")
+                    date_str = date_obj.strftime("%Y%m%d")
+                except ValueError:
+                    try:
+                        # 尝试仅日期格式（如"2023-10-05"）
+                        date_obj = datetime.strptime(date_str_raw, "%Y-%m-%d")
+                        date_str = date_obj.strftime("%Y%m%d")
+                    except ValueError:
+                        # 提取所有数字后取前8位（确保只到日）
+                        date_digits = ''.join(filter(str.isdigit, date_str_raw))
+                        if len(date_digits) >= 8:
+                            date_str = date_digits[:8]  # 取前8位（YYYYMMDD）
+                        else:
+                            date_str = "invalid_date"
+
         html_path = sheet.cell(row=row_num, column=html_col).value
         subject = sheet.cell(row=row_num, column=subject_col).value
         sender = sheet.cell(row=row_num, column=sender_col).value
 
         request_body = build_request_body(s3_client, html_path, subject, sender)
 
-        # 使用工作表名作为类型生成文件名
-        json_filename = f"request_{data_type}_row{row_num}.json"
+        # 使用工作表名作为类型生成文件名，添加日期后缀（仅年月日）
+        json_filename = f"request_{data_type}_row{row_num}_{date_str}.json"
         json_filepath = os.path.join(json_dir, json_filename)
-        # 响应文件路径
-        response_filename = f"response_{data_type}_row{row_num}.json"
+        # 响应文件路径，添加日期后缀（仅年月日）
+        response_filename = f"response_{data_type}_row{row_num}_{date_str}.json"
         response_filepath = os.path.join(response_dir, response_filename)
 
         # 校验：如果subject为空则不写入request，清空原有内容
@@ -225,11 +258,11 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
     try:
         # 如果html_path为空，不生成html_url
         if html_path:
-            # 提交HTML下载任务到专用线程池
+            # 提交HTML下载任务到专用线程池，传递日期参数
             future = html_executor.submit(
                 handle_html_download,
                 s3_client, html_path, row_num, data_type, html_dir,
-                sheet, html_url_col
+                sheet, html_url_col, date_str
             )
             html_futures.append(future)
         else:
@@ -240,10 +273,10 @@ def process_single_row(row_num, sheet, s3_client, api_url, html_col, html_url_co
         print(f'处理行 {row_num} HTML链接失败: {str(e)}')
 
 
-def handle_html_download(s3_client, s3_key, row_num, data_type, html_dir, sheet, html_url_col):
+def handle_html_download(s3_client, s3_key, row_num, data_type, html_dir, sheet, html_url_col, date_str):
     """处理HTML下载的专用函数，在独立线程池中执行"""
     try:
-        local_html_path = download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir)
+        local_html_path = download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir, date_str)
         if local_html_path:
             # 设置本地HTML文件的超链接
             sheet.cell(row=row_num, column=html_url_col).hyperlink = local_html_path
@@ -256,11 +289,11 @@ def handle_html_download(s3_client, s3_key, row_num, data_type, html_dir, sheet,
         print(f'行 {row_num} HTML下载异常: {str(e)}')
 
 
-def download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir):
+def download_html_from_s3(s3_client, s3_key, row_num, data_type, html_dir, date_str):
     """从S3下载HTML文件到对应sheet的HTML目录并返回本地路径"""
     try:
-        # 生成本地文件名，避免重复
-        filename = f"htmlbody_{data_type}_row{row_num}.html"
+        # 生成本地文件名，添加日期后缀（仅年月日）
+        filename = f"htmlbody_{data_type}_row{row_num}_{date_str}.html"
         local_path = os.path.join(html_dir, filename)
 
         # 下载S3文件到本地

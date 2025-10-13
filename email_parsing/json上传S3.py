@@ -35,7 +35,7 @@ def upload_file_to_s3(local_file_path, bucket_name, s3_key=None):
     return False
 
 
-def upload_all_json_to_s3(local_dir, bucket_name, s3_base_path="", max_workers=5):
+def upload_all_json_to_s3(local_dir, bucket_name, s3_base_path="", max_workers=10):
     """
     批量上传指定目录下所有JSON和HTML文件到S3存储桶（多线程版）
 

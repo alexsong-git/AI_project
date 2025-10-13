@@ -5,6 +5,8 @@ import re
 import boto3
 from botocore.exceptions import ClientError
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 app = Flask(__name__)
 
@@ -26,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 # 存储请求数据
 requests_data = []
+
+# 增加线程锁保护全局变量
+requests_lock = threading.Lock()
 
 
 def extract_request_number(filename):
@@ -93,19 +98,67 @@ def merge_data_with_original(original, filtered):
     else:
         return filtered if filtered is not None else original
 
+def process_response_file(key, html_files_by_identifier, expectation_keys):
+    """处理单个response文件的线程任务"""
+    try:
+        filename = os.path.basename(key)
+        base_identifier = extract_base_identifier(filename)
+        if not base_identifier:
+            logger.warning(f"无法从文件名 {filename} 中提取基础标识符，跳过处理")
+            return None
+
+        # 下载response内容
+        s3_response = s3.get_object(Bucket=S3_BUCKET, Key=key)
+        request_content = json.loads(s3_response['Body'].read().decode('utf-8'))
+
+        # 匹配html文件
+        matched_html_files = html_files_by_identifier.get(base_identifier, [])
+        html_count = len(matched_html_files)
+        main_html_path = matched_html_files[0] if html_count > 0 else None
+
+        # 处理expectation文件
+        expect_data = request_content
+        has_expectation_file = False
+        expect_key = f"{S3_BASE_PATH}/expectation_{os.path.splitext(filename)[0]}.json"
+
+        if expect_key in expectation_keys:
+            try:
+                s3_expect = s3.get_object(Bucket=S3_BUCKET, Key=expect_key)
+                raw_expect_data = json.loads(s3_expect['Body'].read().decode('utf-8'))
+                has_expectation_file = True
+                expect_data = raw_expect_data
+                logger.info(f"已加载 {filename} 的expectation文件")
+            except Exception as e:
+                logger.error(f"处理 {filename} 的expectation文件错误: {str(e)}")
+
+        return {
+            'number': extract_request_number(filename),
+            'identifier': base_identifier,
+            'name': filename,
+            'base_name': os.path.splitext(filename)[0],
+            'request': request_content,
+            'response': request_content,
+            'expect': expect_data,
+            'html_body': main_html_path,
+            'has_html': html_count > 0,
+            'html_count': html_count,
+            'html_files': matched_html_files,
+            'has_expectation_file': has_expectation_file
+        }
+    except Exception as e:
+        logger.error(f"加载S3文件 {key} 错误: {str(e)}")
+        return None
 
 def load_requests_from_files():
-    """从S3加载所有response并匹配对应的html文件，优化expectation文件检查性能"""
+    """从S3加载所有response并匹配对应的html文件，使用多线程优化加载速度"""
     global requests_data
     requests_data = []
 
     try:
-        # 1. 批量获取所有expectation文件的key并缓存（核心优化点）
+        # 1. 批量获取所有expectation文件的key（保持不变）
         expectation_keys = set()
         try:
-            # 使用分页器处理大量文件的情况
             paginator = s3.get_paginator('list_objects_v2')
-            # 只列举S3_BASE_PATH下以"expectation_"开头的json文件
             pages = paginator.paginate(Bucket=S3_BUCKET, Prefix=f"{S3_BASE_PATH}/expectation_")
             for page in pages:
                 if 'Contents' in page:
@@ -113,22 +166,19 @@ def load_requests_from_files():
                         if obj['Key'].endswith('.json'):
                             expectation_keys.add(obj['Key'])
             logger.info(f"成功加载 {len(expectation_keys)} 个expectation文件路径")
-        except ClientError as e:
-            logger.error(f"获取expectation文件列表错误: {str(e)}")
         except Exception as e:
-            logger.error(f"获取expectation文件列表时发生错误: {str(e)}")
+            logger.error(f"获取expectation文件列表错误: {str(e)}")
 
-        # 2. 获取所有response文件并提取基础标识符
+        # 2. 获取所有response文件（保持不变）
         response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_RESPONSE_PATH)
         if 'Contents' not in response:
             logger.warning(f"S3路径 {S3_RESPONSE_PATH} 下没有找到文件")
             return
 
-        # 筛选JSON文件并排序
         response_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.json')]
         response_files.sort(key=lambda x: extract_request_number(os.path.basename(x)))
 
-        # 3. 获取所有html文件并按基础标识符分组（保持不变）
+        # 3. 获取所有html文件（保持不变）
         html_response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_HTML_BODY_PATH)
         html_files_by_identifier = {}
         if 'Contents' in html_response:
@@ -137,64 +187,36 @@ def load_requests_from_files():
                 html_filename = os.path.basename(html_key)
                 identifier = extract_base_identifier(html_filename)
                 if identifier:
-                    if identifier not in html_files_by_identifier:
-                        html_files_by_identifier[identifier] = []
-                    html_files_by_identifier[identifier].append(html_key)
+                    html_files_by_identifier[identifier] = html_files_by_identifier.get(identifier, []) + [html_key]
 
-        # 4. 处理每个response文件（优化expectation检查逻辑）
-        for key in response_files:
-            filename = os.path.basename(key)
-            try:
-                base_identifier = extract_base_identifier(filename)
-                if not base_identifier:
-                    logger.warning(f"无法从文件名 {filename} 中提取基础标识符，跳过处理")
-                    continue
+        # 4. 多线程处理response文件
+        max_workers = min(32, len(response_files))  # 限制最大线程数，避免请求过于密集
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            futures = [
+                executor.submit(
+                    process_response_file,
+                    key,
+                    html_files_by_identifier,
+                    expectation_keys
+                ) for key in response_files
+            ]
 
-                # 下载response内容（保持不变）
-                s3_response = s3.get_object(Bucket=S3_BUCKET, Key=key)
-                request_content = json.loads(s3_response['Body'].read().decode('utf-8'))
+            # 收集结果
+            results = []
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    results.append(result)
 
-                # 匹配html文件（保持不变）
-                matched_html_files = html_files_by_identifier.get(base_identifier, [])
-                html_count = len(matched_html_files)
-                main_html_path = matched_html_files[0] if html_count > 0 else None
+            # 按number排序并添加id
+            results.sort(key=lambda x: x['number'])
+            with requests_lock:
+                requests_data = [
+                    {**item, 'id': i + 1}
+                    for i, item in enumerate(results)
+                ]
 
-                # 处理expectation文件（优化部分）
-                expect_data = request_content  # 默认值
-                has_expectation_file = False
-                expect_key = f"{S3_BASE_PATH}/expectation_{os.path.splitext(filename)[0]}.json"
-
-                # 本地检查expectation文件是否存在（替代原有的S3.get_object尝试）
-                if expect_key in expectation_keys:
-                    try:
-                        s3_expect = s3.get_object(Bucket=S3_BUCKET, Key=expect_key)
-                        raw_expect_data = json.loads(s3_expect['Body'].read().decode('utf-8'))
-                        has_expectation_file = True
-                        expect_data = raw_expect_data  # 这里可根据需要恢复clean/merge逻辑
-                        logger.info(f"已加载 {filename} 的expectation文件")
-                    except Exception as e:
-                        logger.error(f"处理 {filename} 的expectation文件错误: {str(e)}")
-                else:
-                    logger.info(f"文件 {filename} 没有对应的expectation文件")
-
-                # 组装请求数据（保持不变）
-                requests_data.append({
-                    'id': len(requests_data) + 1,
-                    'number': extract_request_number(filename),
-                    'identifier': base_identifier,
-                    'name': filename,
-                    'base_name': os.path.splitext(filename)[0],
-                    'request': request_content,
-                    'response': request_content,
-                    'expect': expect_data,
-                    'html_body': main_html_path,
-                    'has_html': html_count > 0,
-                    'html_count': html_count,
-                    'html_files': matched_html_files,
-                    'has_expectation_file': has_expectation_file
-                })
-            except Exception as e:
-                logger.error(f"加载S3文件 {filename} 错误: {str(e)}")
     except ClientError as e:
         logger.error(f"S3访问错误: {str(e)}")
     except Exception as e:

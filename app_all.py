@@ -155,7 +155,7 @@ def load_requests_from_files():
     requests_data = []
 
     try:
-        # 1. 批量获取所有expectation文件的key（保持不变）
+        # 1. 批量获取所有expectation文件的key（使用分页）
         expectation_keys = set()
         try:
             paginator = s3.get_paginator('list_objects_v2')
@@ -169,27 +169,72 @@ def load_requests_from_files():
         except Exception as e:
             logger.error(f"获取expectation文件列表错误: {str(e)}")
 
-        # 2. 获取所有response文件（保持不变）
-        response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_RESPONSE_PATH)
-        if 'Contents' not in response:
-            logger.warning(f"S3路径 {S3_RESPONSE_PATH} 下没有找到文件")
-            return
+        # 2. 获取所有response文件（使用分页查询）
+        response_files = []
+        continuation_token = None
 
-        response_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.json')]
+        while True:
+            # 构建请求参数，包含分页令牌（如果有的话）
+            list_kwargs = {
+                'Bucket': S3_BUCKET,
+                'Prefix': S3_RESPONSE_PATH
+            }
+            if continuation_token:
+                list_kwargs['ContinuationToken'] = continuation_token
+
+            # 调用S3 API
+            response = s3.list_objects_v2(**list_kwargs)
+
+            # 处理当前页的文件
+            if 'Contents' in response:
+                page_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.json')]
+                response_files.extend(page_files)
+                logger.info(f"已加载 {len(response_files)} 个response文件（当前页: {len(page_files)}）")
+
+            # 检查是否有更多数据
+            if not response.get('IsTruncated', False):
+                break
+
+            # 获取下一页的令牌
+            continuation_token = response.get('NextContinuationToken')
+            if not continuation_token:
+                break
+
+        # 对所有获取到的文件按编号排序
         response_files.sort(key=lambda x: extract_request_number(os.path.basename(x)))
+        logger.info(f"共加载 {len(response_files)} 个response文件")
 
-        # 3. 获取所有html文件（保持不变）
-        html_response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_HTML_BODY_PATH)
+        # 3. 获取所有html文件（使用分页查询）
         html_files_by_identifier = {}
-        if 'Contents' in html_response:
-            html_files = [obj['Key'] for obj in html_response['Contents'] if obj['Key'].endswith('.html')]
-            for html_key in html_files:
-                html_filename = os.path.basename(html_key)
-                identifier = extract_base_identifier(html_filename)
-                if identifier:
-                    html_files_by_identifier[identifier] = html_files_by_identifier.get(identifier, []) + [html_key]
+        continuation_token = None
 
-        # 4. 多线程处理response文件
+        while True:
+            list_kwargs = {
+                'Bucket': S3_BUCKET,
+                'Prefix': S3_HTML_BODY_PATH
+            }
+            if continuation_token:
+                list_kwargs['ContinuationToken'] = continuation_token
+
+            html_response = s3.list_objects_v2(**list_kwargs)
+
+            if 'Contents' in html_response:
+                page_html_files = [obj['Key'] for obj in html_response['Contents'] if obj['Key'].endswith('.html')]
+                for html_key in page_html_files:
+                    html_filename = os.path.basename(html_key)
+                    identifier = extract_base_identifier(html_filename)
+                    if identifier:
+                        html_files_by_identifier[identifier] = html_files_by_identifier.get(identifier, []) + [html_key]
+                logger.info(f"已加载 {len(html_files_by_identifier)} 个html文件组（当前页: {len(page_html_files)}）")
+
+            if not html_response.get('IsTruncated', False):
+                break
+
+            continuation_token = html_response.get('NextContinuationToken')
+            if not continuation_token:
+                break
+
+        # 4. 多线程处理response文件（保持不变）
         max_workers = min(32, len(response_files))  # 限制最大线程数，避免请求过于密集
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有任务
