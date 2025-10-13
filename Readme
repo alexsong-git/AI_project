@@ -2,9 +2,13 @@ python email_parsing/读取数据.py /Users/alex/AI邮件解析/AI邮件解析�
 python email_parsing/请求接口.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
 python email_parsing/比较结果.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
 
-读取数据.py #用于从数据库读取邮件信息，但是只能在测试环境使用，生产环境只能手动拉取数据
-请求接口.py #请求邮解析接口，会生成request、response、htmlbody三个文件存在本地
-json上传S3.py #把本地文件上传到S3
-app_all.py #读取S3下的所有文件，打开打标工具
-index.html #打标工具前端代码
-比较结果.py #比较预期结果和接口响应结果（本地excel文件），前提是有填预期结果，目前没怎么使用到这个文件
+1、读取数据.py #用于从数据库读取邮件信息，但是只能在测试环境使用，生产环境只能手动拉取数据
+使用方法：python email_parsing/读取数据.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
+2、请求接口.py #请求邮解析接口，会生成request、response、htmlbody三个文件存在本地
+使用方法：python email_parsing/请求接口.py /Users/alex/AI邮件解析/AI邮件解析自动化.xlsx all
+3、json上传S3.py #把本地文件上传到S3
+使用方法：直接执行文件
+4、app_all.py #读取S3下的所有文件，打开打标工具
+使用方法：直接执行文件
+5、index.html #打标工具前端代码
+6、比较结果.py #比较预期结果和接口响应结果（本地excel文件），前提是有填预期结果，目前没怎么使用到这个文件
