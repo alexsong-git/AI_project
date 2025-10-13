@@ -13,6 +13,7 @@ from datetime import datetime  # 新增：导入datetime处理日期
 
 # 创建 S3 客户端
 s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
+#bucket = 'ecms-user-email-message-dev'
 bucket = 'ecms-user-email-message'
 # HTML文件存储根目录
 HTML_ROOT_DIR = '/Users/alex/AI邮件解析'
